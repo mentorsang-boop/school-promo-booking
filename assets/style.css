@@ -331,3 +331,13 @@ table.data tr:last-child td { border-bottom: 0; }
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 .done .stack p { margin: 0; }
+
+/* 수업시간표 입력 */
+.tt-wrap { max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.tt { width: 100%; border-collapse: collapse; font-size: 0.75rem; touch-action: none; }
+.tt th { position: sticky; top: 0; background: var(--surface); color: var(--ink-2); font-weight: 600; padding: 6px 4px; z-index: 1; }
+.tt tbody th { position: static; text-align: right; padding-right: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tt td { padding: 2px; }
+.tt-cell { display: block; width: 100%; min-width: 36px; height: 26px; border: 1px solid #bfe3d1; border-radius: 4px; background: var(--ok-50); cursor: pointer; padding: 0; }
+.tt-cell.on { background: var(--brand); border-color: var(--brand); }
+.lg-class { background: var(--brand); border-color: var(--brand) !important; }

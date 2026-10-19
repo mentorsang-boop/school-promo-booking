@@ -191,3 +191,9 @@ begin
   return new;
 end;
 $$;
+
+-- ---------- v3.2: 신청 기간 날짜, 수업시간표 ----------
+alter table public.profiles
+  add column if not exists book_from date,
+  add column if not exists book_until date,
+  add column if not exists class_times jsonb not null default '[]'::jsonb; -- [{ wd: 1~5, s: "09:00", e: "09:50" }]

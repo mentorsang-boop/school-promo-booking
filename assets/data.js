@@ -22,6 +22,16 @@
       }
       return out.map(([s, e]) => ({ start_at: new Date(s).toISOString(), end_at: new Date(e).toISOString() }));
     },
+    // 신청 받는 날짜 범위 (그 날 0시 기준, last 포함). 시작일·마감일을 비우면 내일부터 days_ahead일까지
+    bookRange(p) {
+      const day = (str) => { const [y, m, d] = String(str).split("-").map(Number); return new Date(y, m - 1, d); };
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+      let first = p.book_from ? day(p.book_from) : tomorrow;
+      if (first < tomorrow) first = tomorrow;
+      let last = p.book_until ? day(p.book_until) : new Date(today.getFullYear(), today.getMonth(), today.getDate() + (Number(p.days_ahead) || 28));
+      return { first, last };
+    },
     covered(intervals, s, e) {
       const S = T.ms(s), E = T.ms(e);
       return T.merge(intervals).some((x) => T.ms(x.start_at) <= S && T.ms(x.end_at) >= E);
@@ -36,6 +46,7 @@
   const PUBLIC_FIELDS = [
     "slug", "name", "page_title", "page_intro", "contact_phone", "default_place",
     "slot_minutes", "duration_minutes", "days_ahead", "day_start", "day_end", "confirm_template", "active",
+    "book_from", "book_until",
   ];
   // 아이디는 서버에 `{아이디}@isg-promo.local` 형태로 저장됩니다 (메일은 보내지 않음).
   const ID_DOMAIN = "isg-promo.local";
@@ -45,7 +56,7 @@
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v3";
+    const KEY = "promo-booking-demo-v3.2";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
@@ -66,7 +77,7 @@
 
     function seed() {
       const base = (id, extra) => ({
-        id, active: true, slot_minutes: 30, duration_minutes: 60, days_ahead: 28,
+        id, active: true, slot_minutes: 30, duration_minutes: 60, days_ahead: 28, book_from: null, book_until: null, class_times: [],
         day_start: "09:00", day_end: "18:00", invite_template: DEFAULT_INVITE, confirm_template: DEFAULT_CONFIRM,
         password: "1234", ...extra,
       });
@@ -210,7 +221,7 @@
         db.profiles.push({
           id: "u-" + Math.random().toString(36).slice(2, 9), login_id, email: login_id + "@isg-promo.local", name: name.trim(),
           role: role === "admin" ? "admin" : "user", active: true, slug, password,
-          slot_minutes: 30, duration_minutes: 60, days_ahead: 28, day_start: "09:00", day_end: "18:00",
+          slot_minutes: 30, duration_minutes: 60, days_ahead: 28, day_start: "09:00", day_end: "18:00", book_from: null, book_until: null, class_times: [],
           page_title: tpl.page_title, page_intro: "편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.",
           contact_phone: "", default_place: "", invite_template: DEFAULT_INVITE, confirm_template: DEFAULT_CONFIRM,
         });
@@ -261,6 +272,8 @@
         const len = (T.ms(end_at) - T.ms(start_at)) / 60000;
         if (!(len >= p.slot_minutes && len <= 240 && len % p.slot_minutes === 0)) throw new Error("신청 시간이 올바르지 않아요.");
         if (T.ms(start_at) <= Date.now()) throw new Error("지난 시간은 신청할 수 없어요.");
+        const rg = T.bookRange(p);
+        if (new Date(start_at) < rg.first || new Date(start_at) >= new Date(rg.last.getFullYear(), rg.last.getMonth(), rg.last.getDate() + 1)) throw new Error("신청 받는 기간을 벗어났어요.");
         const open = db.open.filter((x) => x.user_id === p.id);
         if (!T.covered(open, start_at, end_at)) throw new Error("방금 그 시간이 닫혔어요. 다른 시간을 골라 주세요.");
         const clash = db.bookings.filter((x) => x.user_id === p.id && x.status === "confirmed")

@@ -328,7 +328,7 @@
 
     pane.innerHTML = `
       <div class="list-head"><div><h2 class="section-title">열린 시간</h2><p class="hint-line">날짜를 고른 뒤, 방문할 수 있는 시간을 눌러 열어 주세요. 다시 누르면 닫힙니다.</p></div>
-        <div class="row"><button class="btn btn-sm btn-soft" id="open-month">이번 달 평일 모두 열기</button><button class="btn btn-sm" id="close-month">이번 달 모두 닫기</button></div></div>
+        <div class="row"><button class="btn btn-sm btn-primary" id="timetable">수업시간표로 한 번에 열기</button><button class="btn btn-sm btn-soft" id="open-month">이번 달 평일 모두 열기</button><button class="btn btn-sm" id="close-month">이번 달 모두 닫기</button></div></div>
       <div class="cal-wrap">
         <div><div id="cal"></div>
           <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span></div></div>
@@ -419,6 +419,7 @@
       }, 500);
     }
 
+    pane.querySelector("#timetable").onclick = () => openTimetable(() => paneOpen(pane));
     pane.querySelector("#open-month").onclick = () => {
       for (let d = new Date(m0); d < m1; d = addDays(d, 1)) if (!isWeekend(d)) setDay(d, true);
       drawCal(); drawPanel(); persist();
@@ -429,6 +430,83 @@
     };
     drawCal();
     drawPanel();
+  }
+
+  // 수업시간표: 요일별 수업 시간을 한 번 표시해 두고, 신청 기간 전체에 '수업 없는 평일 시간 = 열림'으로 일괄 적용
+  const WD5 = [1, 2, 3, 4, 5];
+  function openTimetable(done) {
+    const p = state.me;
+    const unit = Number(p.slot_minutes) || 30;
+    const rows = rowsFor(p);
+    const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+    const toHM = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+    // 저장 형식: [{ wd: 1~5, s: "09:00", e: "09:50" }]
+    const marked = new Set();
+    for (const c of p.class_times || []) for (const r of rows) {
+      const a = toMin(r);
+      if (a < toMin(c.e) && toMin(c.s) < a + unit) marked.add(`${c.wd}-${r}`);
+    }
+    const toList = () => {
+      const out = [];
+      for (const wd of WD5) {
+        let cur = null;
+        for (const r of rows) {
+          if (marked.has(`${wd}-${r}`)) { if (cur && cur.e === r) cur.e = toHM(toMin(r) + unit); else { cur = { wd, s: r, e: toHM(toMin(r) + unit) }; out.push(cur); } }
+        }
+      }
+      return out;
+    };
+    const { first, last } = T.bookRange(p);
+    openModal(`<div class="card-body">
+      <h2 class="section-title">수업시간표로 한 번에 열기</h2>
+      <p class="muted">수업이 있는 칸을 눌러(끌어서 여러 칸) 표시해 주세요. 적용하면 신청 기간의 평일마다 <b>수업이 없는 시간은 열리고, 수업 시간은 닫혀요.</b></p>
+      <div class="tt-wrap"><table class="tt"><thead><tr><th></th>${WD5.map((w) => `<th>${WD[w]}</th>`).join("")}</tr></thead><tbody>
+        ${rows.map((r) => `<tr><th>${r}</th>${WD5.map((w) => `<td><button type="button" class="tt-cell ${marked.has(`${w}-${r}`) ? "on" : ""}" data-k="${w}-${r}" aria-label="${WD[w]} ${r}"></button></td>`).join("")}</tr>`).join("")}
+      </tbody></table></div>
+      <div class="legend"><span><i class="lg-class"></i>수업</span><span><i class="lg-open"></i>비어 있음 (열림)</span></div>
+      <p class="small muted">적용 기간: ${fmtDay(first)} ~ ${fmtDay(last)} (페이지 설정 → 신청 시간에서 바꿀 수 있어요). 이 기간에 직접 열고 닫은 시간은 시간표 기준으로 바뀌고, 이미 받은 예약은 그대로예요.</p>
+      <p class="error" id="tt-err" hidden></p>
+      <div class="form-actions"><button class="btn" data-close>닫기</button><button class="btn" id="tt-save">시간표만 저장</button><button class="btn btn-primary" id="tt-apply">신청 기간에 적용</button></div>
+    </div>`);
+    const $m = document.getElementById("modal-root");
+    let paint = null;
+    const apply = (el) => { const on = paint; el.classList.toggle("on", on); if (on) marked.add(el.dataset.k); else marked.delete(el.dataset.k); };
+    $m.querySelectorAll(".tt-cell").forEach((el) => {
+      el.addEventListener("pointerdown", (e) => { e.preventDefault(); paint = !el.classList.contains("on"); apply(el); });
+      el.addEventListener("pointerenter", () => { if (paint !== null) apply(el); });
+    });
+    $m.querySelector(".tt").addEventListener("pointermove", (e) => {
+      if (paint === null || e.pointerType === "mouse") return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el && el.classList.contains("tt-cell") && el.classList.contains("on") !== paint) apply(el);
+    });
+    window.onpointerup = () => { paint = null; };
+    const err = document.getElementById("tt-err");
+    const save = async () => { state.me = await API.updateProfile({ class_times: toList() }); };
+    document.getElementById("tt-save").onclick = async () => {
+      try { await save(); toast("시간표를 저장했어요."); } catch (e) { err.textContent = e.message; err.hidden = false; }
+    };
+    document.getElementById("tt-apply").onclick = async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await save();
+        const list = toList();
+        const intervals = [];
+        for (let d = new Date(first); d <= last; d = addDays(d, 1)) {
+          if (isWeekend(d)) continue;
+          for (const r of rows) {
+            if (marked.has(`${d.getDay()}-${r}`)) continue;
+            const s0 = atTime(d, r);
+            if (T.ms(s0) > Date.now()) intervals.push({ start_at: s0.toISOString(), end_at: addMin(s0, unit).toISOString() });
+          }
+        }
+        await API.saveOpen(first.toISOString(), addDays(last, 1).toISOString(), intervals);
+        closeModal();
+        toast(`${fmtDay(first)}부터 ${fmtDay(last)}까지 적용했어요.`);
+        state.month = monthStart(first); state.day = null;
+        done && done(list);
+      } catch (e) { err.textContent = e.message; err.hidden = false; ev.target.disabled = false; }
+    };
   }
 
   // 예약 목록 (월 달력 + 그 달 목록)
@@ -554,7 +632,8 @@
         </section>
         <section data-sec="time" class="form-grid">
           <div class="field"><label for="f-unit">시간 칸 단위</label><select id="f-unit">${opt([10, 15, 20, 30, 60], p.slot_minutes, (v) => `${v}분`)}</select><span class="hint">신청자는 이 단위로 시작·끝 시간을 고릅니다.</span></div>
-          <div class="field"><label for="f-ahead">신청 받는 기간</label><select id="f-ahead">${opt([7, 14, 21, 28, 42, 56, 90], p.days_ahead, (v) => `오늘부터 ${v}일`)}</select></div>
+          <div class="field"><label for="f-from">신청 받는 첫날</label><input id="f-from" type="date" value="${esc(p.book_from || "")}"><span class="hint">비워 두면 내일부터 받아요.</span></div>
+          <div class="field"><label for="f-until">신청 받는 마지막 날</label><input id="f-until" type="date" value="${esc(p.book_until || "")}"><span class="hint">비워 두면 오늘부터 ${Number(p.days_ahead) || 28}일까지 받아요.</span></div>
           <div class="field"><label for="f-start">하루 시작 시각</label><select id="f-start">${opt(times, p.day_start, (v) => v)}</select></div>
           <div class="field"><label for="f-end">하루 끝 시각</label><select id="f-end">${opt(times, p.day_end, (v) => v)}</select></div>
         </section>
@@ -610,11 +689,12 @@
       const bad = (tab, msg) => { state.settingsTab = tab; show(); err.textContent = msg; err.hidden = false; };
       if (!v("#f-name") || !v("#f-title")) return bad("basic", "이름과 신청 페이지 제목을 입력해 주세요.");
       if (v("#f-start") >= v("#f-end")) return bad("time", "하루 끝 시각이 시작 시각보다 늦어야 해요.");
+      if (v("#f-from") && v("#f-until") && v("#f-from") > v("#f-until")) return bad("time", "마지막 날이 첫날보다 빠를 수 없어요.");
       if (!/^[a-z0-9-]{3,30}$/.test(v("#f-slug"))) return bad("address", "주소는 영어 소문자, 숫자, - 로 3~30자여야 해요.");
       try {
         state.me = await API.updateProfile({
           name: v("#f-name"), contact_phone: v("#f-phone"), page_title: v("#f-title"), page_intro: pane.querySelector("#f-intro").value,
-          slot_minutes: Number(v("#f-unit")), day_start: v("#f-start"), day_end: v("#f-end"), days_ahead: Number(v("#f-ahead")),
+          slot_minutes: Number(v("#f-unit")), day_start: v("#f-start"), day_end: v("#f-end"), book_from: v("#f-from") || null, book_until: v("#f-until") || null,
           default_place: v("#f-place"), slug: v("#f-slug"), invite_template: pane.querySelector("#f-invite").value, confirm_template: pane.querySelector("#f-confirm").value,
         });
         toast("저장했어요.");
@@ -698,8 +778,7 @@
     }
     const unit = Number(page.slot_minutes) || 30;
     const rows = rowsFor(page);
-    const first = addDays(dayStart(new Date()), 1); // 내일부터
-    const last = addDays(dayStart(new Date()), Number(page.days_ahead) || 28); // 이 날까지 포함
+    const { first, last } = T.bookRange(page); // last 포함
     const firstMonth = monthStart(first), lastMonth = monthStart(last);
     if (!state.pubMonth || state.pubMonth < firstMonth || state.pubMonth > lastMonth) state.pubMonth = firstMonth;
     let avail = { open: [], blocked: [] };

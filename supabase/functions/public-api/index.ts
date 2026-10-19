@@ -23,7 +23,7 @@ const json = (body: unknown, status = 200) =>
 const fail = (msg: string, status = 400) => json({ error: msg }, status);
 
 const PUBLIC_FIELDS =
-  "id, slug, name, page_title, page_intro, contact_phone, default_place, slot_minutes, duration_minutes, days_ahead, day_start, day_end, confirm_template, active";
+  "id, slug, name, page_title, page_intro, contact_phone, default_place, slot_minutes, duration_minutes, days_ahead, day_start, day_end, confirm_template, active, book_from, book_until";
 
 type Span = { start_at: string; end_at: string };
 const ms = (s: string | Date) => new Date(s).getTime();
@@ -134,7 +134,12 @@ Deno.serve(async (req) => {
     if (isNaN(e) || e - s < unitMs || e - s > 240 * 60000 || (e - s) % unitMs !== 0) return fail("신청 시간이 올바르지 않아요.");
     const now = Date.now();
     if (s <= now) return fail("지난 시간은 신청할 수 없어요.");
-    if (s > now + (page.days_ahead + 1) * 86400000) return fail("신청 받는 기간을 벗어났어요.");
+    // 신청 받는 날짜 범위 (한국 시간 기준 날짜로 비교)
+    const kstDay = (t: number) => new Date(t + 9 * 3600000).toISOString().slice(0, 10);
+    const until = page.book_until ?? kstDay(now + page.days_ahead * 86400000);
+    if (kstDay(s) <= kstDay(now) || (page.book_from && kstDay(s) < page.book_from) || kstDay(s) > until) {
+      return fail("신청 받는 기간을 벗어났어요.");
+    }
     const span = { start_at: new Date(s).toISOString(), end_at: new Date(e).toISOString() };
     const { data: open } = await db.from("open_slots").select("start_at, end_at").eq("user_id", userId)
       .lt("start_at", span.end_at).gt("end_at", span.start_at);
