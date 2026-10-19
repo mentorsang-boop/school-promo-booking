@@ -148,7 +148,7 @@
            ${me.role === "admin" ? `<a class="btn btn-sm btn-ghost" href="#/admin">관리</a>` : ""}
            <a class="btn btn-sm" href="#/app">내 페이지</a>
            <button class="btn btn-sm btn-ghost" id="logout">로그아웃</button>`
-        : `<a class="btn btn-sm" href="#/login">로그인</a>`;
+        : `<a class="btn btn-sm btn-ghost" href="#/signup">계정 만들기</a><a class="btn btn-sm" href="#/login">로그인</a>`;
     $app.innerHTML = `${demoBar}
       <header class="topbar" ${opts.publicView ? "hidden" : ""}><div class="wrap">
         <a class="brand" href="${opts.publicView ? "javascript:void(0)" : "#/"}"><img src="${ASSET.logo}" alt="${SCHOOL} Incheon Polytechnic School"><span class="svc">고교 방문 홍보 예약</span></a>
@@ -218,7 +218,7 @@
         <p class="error" id="login-err" hidden></p>
         <button class="btn btn-primary" type="submit">로그인</button>
       </form>
-      <p class="small muted">비밀번호를 잊었으면 관리자에게 초기화를 요청해 주세요.</p>`);
+      <p class="small muted">처음이면 <a href="#/signup">계정 만들기</a> · 비밀번호를 잊었으면 관리자에게 초기화를 요청해 주세요.</p>`);
     const err = document.getElementById("login-err");
     document.getElementById("login-form").onsubmit = async (e) => {
       e.preventDefault(); err.hidden = true;
@@ -227,6 +227,33 @@
         if (state.me) next();
         else { err.textContent = "사용할 수 없는 계정이에요. 관리자에게 문의해 주세요."; err.hidden = false; await API.signOut(); }
       } catch (e2) { err.textContent = e2.message; err.hidden = false; }
+    };
+  }
+
+  function viewSignup() {
+    simpleCard("계정 만들기", `<p class="muted">홍보 방문을 다니는 선생님이면 누구나 만들 수 있어요. 아이디와 비밀번호는 잊지 않게 적어 두세요.</p>
+      <form id="signup-form" class="stack">
+        <div class="field"><label for="u-name">이름</label><input id="u-name" required autocomplete="name" placeholder="홍길동"><span class="hint">안내문자에 "인천산업정보학교 ○○○" 으로 들어가요.</span></div>
+        <div class="field"><label for="u-id">아이디</label><input id="u-id" required autocomplete="username" autocapitalize="none" placeholder="영어 소문자·숫자 3~20자"><span class="hint">신청 페이지 주소에도 쓰여요.</span></div>
+        <div class="field"><label for="u-pw">비밀번호</label><input id="u-pw" type="password" required minlength="6" autocomplete="new-password" placeholder="6자 이상"></div>
+        <div class="field"><label for="u-pw2">비밀번호 확인</label><input id="u-pw2" type="password" required autocomplete="new-password"></div>
+        <p class="error" id="login-err" hidden></p>
+        <button class="btn btn-primary" type="submit">계정 만들기</button>
+      </form>
+      <p class="small muted">이미 계정이 있으면 <a href="#/login">로그인</a></p>`);
+    const err = document.getElementById("login-err");
+    document.getElementById("signup-form").onsubmit = async (e) => {
+      e.preventDefault(); err.hidden = true;
+      const v = (id) => document.getElementById(id).value;
+      const show = (m) => { err.textContent = m; err.hidden = false; };
+      if (!/^[a-z0-9._-]{3,20}$/.test(v("u-id").trim().toLowerCase())) return show("아이디는 영어 소문자, 숫자, . _ - 로 3~20자여야 해요.");
+      if (v("u-pw").length < 6) return show("비밀번호는 6자 이상이어야 해요.");
+      if (v("u-pw") !== v("u-pw2")) return show("두 비밀번호가 서로 달라요.");
+      try {
+        state.me = await API.signUp({ name: v("u-name").trim(), login_id: v("u-id").trim().toLowerCase(), password: v("u-pw") });
+        toast("계정을 만들었어요. 먼저 방문 가능한 시간을 열어 주세요.");
+        location.hash = "#/app";
+      } catch (e2) { show(e2.message); }
     };
   }
 
@@ -621,17 +648,7 @@
       const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
       box.innerHTML = `
         <div class="card"><div class="card-body">
-          <h2 class="section-title">선생님 계정 만들기</h2><p class="hint-line">만든 아이디와 비밀번호를 선생님께 알려 주세요. 선생님은 로그인 후 '페이지 설정 → 내 계정'에서 비밀번호를 바꿀 수 있어요.</p>
-          <form id="add-form" class="form-grid">
-            <div class="field"><label for="a-name">이름</label><input id="a-name" required placeholder="홍길동"></div>
-            <div class="field"><label for="a-id">아이디</label><input id="a-id" required autocapitalize="none" placeholder="영어 소문자·숫자 3~20자"></div>
-            <div class="field"><label for="a-pw">처음 비밀번호</label><input id="a-pw" required minlength="6" value="${tempPw()}"></div>
-            <div class="field"><label for="a-role">권한</label><select id="a-role"><option value="user">선생님</option><option value="admin">관리자</option></select></div>
-            <div class="form-actions full"><button class="btn btn-primary" type="submit">계정 만들기</button></div>
-          </form>
-        </div></div>
-        <div class="card"><div class="card-body">
-          <h2 class="section-title">선생님 ${users.length}명</h2>
+          <h2 class="section-title">선생님 ${users.length}명</h2><p class="hint-line">선생님은 로그인 화면의 '계정 만들기'에서 직접 가입해요. 모르는 계정은 '사용 멈춤'이나 삭제로 정리해 주세요.</p>
           <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>아이디</th><th>신청 페이지</th><th>권한</th><th>상태</th><th></th></tr></thead><tbody>
             ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.login_id || "")}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.role === "admin" ? "관리자" : "선생님"}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
               <td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm" data-reset="${u.id}">비밀번호 초기화</button>${u.id === state.me.id ? "" : `<button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button><button class="btn btn-sm btn-danger" data-del="${u.id}">삭제</button>`}</div></td></tr>`).join("")}
@@ -643,12 +660,6 @@
             ${upcoming.map((b) => `<tr><td>${fmtRange(b.start_at, b.end_at)}</td><td>${esc(b.owner_name)}</td><td>${esc(b.school)}</td><td>${esc(b.contact_name)} ${esc(b.phone)}</td><td>${esc(b.target || "-")}</td></tr>`).join("")}
           </tbody></table></div>` : `<div class="empty-pane">다가오는 예약이 없어요.</div>`}
         </div></div>`;
-      box.querySelector("#add-form").onsubmit = async (e) => {
-        e.preventDefault();
-        const f = { name: box.querySelector("#a-name").value.trim(), login_id: box.querySelector("#a-id").value.trim().toLowerCase(), password: box.querySelector("#a-pw").value, role: box.querySelector("#a-role").value };
-        try { await API.createUser(f); await draw(); showLoginInfo(f.name, f.login_id, f.password, "계정을 만들었어요"); }
-        catch (e2) { toast(e2.message); }
-      };
       const userOf = (id) => users.find((x) => x.id === id) || {};
       box.querySelectorAll("[data-reset]").forEach((b) => { b.onclick = () => {
         const u = userOf(b.dataset.reset);
@@ -866,6 +877,10 @@
     if (a === "login") {
       if (state.me) { location.hash = b === "admin" ? "#/admin" : "#/app"; return; }
       return viewLogin(b === "admin");
+    }
+    if (a === "signup") {
+      if (state.me) { location.hash = "#/app"; return; }
+      return viewSignup();
     }
     if (a === "admin") return viewAdmin();
     if (a === "app") {

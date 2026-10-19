@@ -192,8 +192,12 @@
         return wait(b);
       },
       // 관리자
-      async createUser({ login_id, name, password, role }) {
-        needAdmin();
+      async signUp(fields) {
+        await this.createUser({ ...fields, role: "user" }, true);
+        return this.signIn(fields.login_id, fields.password);
+      },
+      async createUser({ login_id, name, password, role }, self) {
+        if (!self) needAdmin();
         const db = load();
         login_id = String(login_id || "").trim().toLowerCase();
         if (!/^[a-z0-9._-]{3,20}$/.test(login_id)) throw new Error("아이디는 영어 소문자, 숫자, . _ - 로 3~20자여야 해요.");
@@ -315,6 +319,7 @@
         });
       },
       async setupStatus() { return fn({ action: "status" }, "admin-api"); },
+      async signUp(fields) { await fn({ action: "signup", ...fields }, "admin-api"); return this.signIn(fields.login_id, fields.password); },
       async setupAdmin(fields) { await fn({ action: "setup", ...fields }, "admin-api"); return this.signIn(fields.login_id, fields.password); },
       async signIn(loginId, password) {
         const id = String(loginId || "").trim().toLowerCase();

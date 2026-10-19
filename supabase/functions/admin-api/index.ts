@@ -1,6 +1,7 @@
 // 아이디·비밀번호 계정 관리 서버 함수.
 // - status: 관리자 계정이 아직 없는지 (처음 설정 화면용)
 // - setup: 관리자 계정이 하나도 없을 때만 첫 관리자 만들기
+// - signup: 선생님이 직접 가입
 // - create_user / reset_password / delete_user: 관리자만
 // 아이디는 내부적으로 `{아이디}@isg-promo.local` 이메일로 저장합니다 (메일은 보내지 않음).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -73,6 +74,12 @@ Deno.serve(async (req) => {
   if (action === "setup") {
     if (await hasAdmin()) return fail("이미 관리자 계정이 있어요. 로그인해 주세요.", 409);
     const r = await createAccount(loginId, password, name, "admin");
+    return r.error ? fail(r.error) : json({ ok: true });
+  }
+
+  // 선생님이 직접 가입 (관리자가 '사용 멈춤'이나 삭제로 정리)
+  if (action === "signup") {
+    const r = await createAccount(loginId, password, name, "user");
     return r.error ? fail(r.error) : json({ ok: true });
   }
 
