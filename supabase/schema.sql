@@ -1,4 +1,4 @@
--- 홍보 예약 시트 v1.0 데이터베이스
+-- 인천산업정보학교 고교 방문 홍보 예약 데이터베이스
 -- Supabase SQL Editor에서 한 번 실행합니다. (이미 적용된 프로젝트에는 다시 실행하지 마세요)
 
 create extension if not exists btree_gist;
@@ -19,8 +19,8 @@ create table public.profiles (
   role text not null default 'user' check (role in ('admin', 'user')),
   active boolean not null default true,
   slug text not null unique check (slug ~ '^[a-z0-9-]{3,30}$'),
-  page_title text not null default '학교 홍보 방문 신청',
-  page_intro text not null default '원하시는 날짜와 시간을 골라 신청해 주세요. 신청 즉시 확정됩니다.',
+  page_title text not null default '인천산업정보학교 고교 방문 홍보 신청',
+  page_intro text not null default '편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.',
   contact_phone text not null default '',
   default_place text not null default '',
   slot_minutes int not null default 30 check (slot_minutes in (10, 15, 20, 30, 60)),

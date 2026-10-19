@@ -29,9 +29,9 @@
   };
 
   const DEFAULT_INVITE =
-    "안녕하세요, {사용자}입니다.\n학교 홍보 방문 일정을 잡고자 연락드립니다.\n아래 링크에서 편하신 날짜와 시간을 골라 신청해 주세요.\n\n{링크}\n\n감사합니다.";
+    "안녕하세요, 인천산업정보학교 {사용자}입니다.\n학교 홍보 방문 일정을 잡고자 연락드립니다.\n아래 링크에서 편하신 날짜와 시간을 골라 신청해 주세요.\n\n{링크}\n\n감사합니다.";
   const DEFAULT_CONFIRM =
-    "[학교 홍보 일정 안내]\n{학교명} {담당자} 선생님, 홍보 방문 일정이 확정되었습니다.\n\n■ 일시: {일시}\n■ 장소: {장소}\n■ 대상: {대상}\n■ 방문 담당: {사용자} ({연락처})\n\n일정 변경이 필요하시면 위 연락처로 말씀 부탁드립니다. 감사합니다.";
+    "[인천산업정보학교 홍보 방문 안내]\n{학교명} {담당자} 선생님, 홍보 방문 일정이 확정되었습니다.\n\n■ 일시: {일시}\n■ 장소: {장소}\n■ 대상: {대상}\n■ 방문 담당: {사용자} ({연락처})\n\n일정 변경이 필요하시면 위 연락처로 말씀 부탁드립니다. 감사합니다.";
 
   const PUBLIC_FIELDS = [
     "slug", "name", "page_title", "page_intro", "contact_phone", "default_place",
@@ -71,18 +71,18 @@
       const profiles = [
         base("u-admin", {
           email: "admin@example.com", name: "미카", role: "admin", slug: "mika",
-          page_title: "입학처 홍보 방문 신청", page_intro: "원하시는 날짜와 시간을 골라 주세요.\n방문 홍보는 약 1시간 진행됩니다.",
+          page_title: "인천산업정보학교 고교 방문 홍보 신청", page_intro: "원하시는 날짜와 시간을 골라 주세요.\n방문 홍보는 약 1시간 진행됩니다.",
           contact_phone: "010-1234-5678", default_place: "",
         }),
         base("u-kim", {
           email: "kim@example.com", name: "김홍보", role: "user", slug: "kim",
-          page_title: "OO대학교 고교 방문 홍보 신청",
-          page_intro: "학과 소개와 입시 안내를 위해 학교로 직접 찾아갑니다.\n편하신 시간을 골라 신청해 주세요. 신청 즉시 확정됩니다.",
+          page_title: "인천산업정보학교 고교 방문 홍보 신청",
+          page_intro: "위탁 교육과정과 학과 소개를 위해 고등학교로 직접 찾아갑니다.\n편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.",
           contact_phone: "010-2345-6789", default_place: "학교 시청각실",
         }),
       ];
       const open = [];
-      for (let off = 1; off <= 20; off++) {
+      for (let off = 1; off <= 45; off++) {
         if (isWeekend(off)) continue;
         for (const uid of ["u-kim", "u-admin"]) {
           open.push({ user_id: uid, start_at: at(off, "10:00"), end_at: at(off, "12:00") });
@@ -91,7 +91,7 @@
       }
       // 구글 캘린더 '바쁨' 예시
       const busy = [];
-      for (let off = 1; off <= 20; off++) {
+      for (let off = 1; off <= 45; off++) {
         if (isWeekend(off)) continue;
         if (off % 3 === 1) busy.push({ user_id: "u-kim", start_at: at(off, "10:30"), end_at: at(off, "11:30") });
         if (off % 4 === 2) busy.push({ user_id: "u-kim", start_at: at(off, "15:00"), end_at: at(off, "16:30") });
@@ -233,11 +233,12 @@
         ].map((x) => pick(x, ["start_at", "end_at"]));
         return wait({ open, blocked });
       },
-      async book(slug, start_at, fields) {
+      async book(slug, start_at, end_at, fields) {
         const db = load();
         const p = db.profiles.find((x) => x.slug === slug && x.active);
         if (!p) throw new Error("신청 페이지를 찾지 못했어요.");
-        const end_at = new Date(T.ms(start_at) + p.duration_minutes * 60000).toISOString();
+        const len = (T.ms(end_at) - T.ms(start_at)) / 60000;
+        if (!(len >= p.slot_minutes && len <= 240 && len % p.slot_minutes === 0)) throw new Error("신청 시간이 올바르지 않아요.");
         if (T.ms(start_at) <= Date.now()) throw new Error("지난 시간은 신청할 수 없어요.");
         const open = db.open.filter((x) => x.user_id === p.id);
         if (!T.covered(open, start_at, end_at)) throw new Error("방금 그 시간이 닫혔어요. 다른 시간을 골라 주세요.");
@@ -385,8 +386,8 @@
       async availability(slug, from, to) {
         return fn({ action: "availability", slug, from, to });
       },
-      async book(slug, start_at, fields) {
-        return fn({ action: "book", slug, start_at, fields });
+      async book(slug, start_at, end_at, fields) {
+        return fn({ action: "book", slug, start_at, end_at, fields });
       },
     };
   }

@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
   if (action === "availability") {
     const from = String(body.from), to = String(body.to);
-    if (isNaN(ms(from)) || isNaN(ms(to)) || ms(to) <= ms(from) || ms(to) - ms(from) > 15 * 86400000) return fail("기간이 올바르지 않아요.");
+    if (isNaN(ms(from)) || isNaN(ms(to)) || ms(to) <= ms(from) || ms(to) - ms(from) > 45 * 86400000) return fail("기간이 올바르지 않아요.");
     const [{ data: open }, blocked] = await Promise.all([
       db.from("open_slots").select("start_at, end_at").eq("user_id", userId).lt("start_at", to).gt("end_at", from),
       blockedFor(userId, from, to),
@@ -128,7 +128,10 @@ Deno.serve(async (req) => {
     if (!fields.school || !fields.contact_name || fields.phone.length < 8) return fail("학교명, 성함, 연락처를 입력해 주세요.");
     const s = ms(String(body.start_at));
     if (isNaN(s)) return fail("시간이 올바르지 않아요.");
-    const e = s + page.duration_minutes * 60000;
+    // 신청자는 칸 단위로 시작·끝을 고릅니다 (최대 4시간)
+    const e = ms(String(body.end_at));
+    const unitMs = page.slot_minutes * 60000;
+    if (isNaN(e) || e - s < unitMs || e - s > 240 * 60000 || (e - s) % unitMs !== 0) return fail("신청 시간이 올바르지 않아요.");
     const now = Date.now();
     if (s <= now) return fail("지난 시간은 신청할 수 없어요.");
     if (s > now + (page.days_ahead + 1) * 86400000) return fail("신청 받는 기간을 벗어났어요.");

@@ -1,34 +1,48 @@
-// 화면: 첫 화면, 로그인, 사용자/관리자 대시보드, 신청자 페이지, 신청 완료
+// 화면: 첫 화면, 로그인, 내 페이지(열린 시간·예약·공유·설정), 관리, 신청자 페이지, 신청 완료
 (function () {
   const API = window.API;
   const T = API.T;
   const CFG = window.APP_CONFIG || {};
+  const ASSET = Object.assign({
+    logo: "assets/logo.svg",
+    logoWhite: "assets/logo-white.svg",
+    emblem: "assets/emblem.svg",
+    emblemWhite: "assets/emblem-white.svg",
+  }, window.APP_ASSETS || {});
+  const SCHOOL = "인천산업정보학교";
+  const MAX_BOOK_MIN = 240; // 신청자가 한 번에 고를 수 있는 최대 시간
+
   const $app = document.getElementById("app");
   const $modal = document.getElementById("modal-root");
   const $toast = document.getElementById("toast");
 
   const state = {
     me: null,
-    tab: "open",
-    weekStart: null, // 사용자 편집 격자의 주 시작일
-    pubWeek: 0, // 신청자 격자의 주 번호
+    month: null, // 내 페이지 달력의 달
+    day: null, // 내 페이지에서 고른 날
+    bookDay: null, // 예약 목록에서 고른 날 (없으면 달 전체)
+    settingsTab: "basic",
+    pubMonth: null,
     lastBooking: null,
   };
 
-  // ---------- 작은 도구 ----------
+  // ---------- 날짜 도구 ----------
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const WD = ["일", "월", "화", "수", "목", "금", "토"];
-  const COLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const pad = (n) => String(n).padStart(2, "0");
   const dayStart = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
   const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
   const addMin = (d, n) => new Date(T.ms(d) + n * 60000);
+  const monthStart = (d) => { const x = dayStart(d); x.setDate(1); return x; };
+  const addMonths = (d, n) => { const x = monthStart(d); x.setMonth(x.getMonth() + n); return x; };
   const atTime = (d, hhmm) => { const [h, m] = hhmm.split(":").map(Number); const x = dayStart(d); x.setHours(h, m, 0, 0); return x; };
   const fmtDay = (d) => { d = new Date(d); return `${d.getMonth() + 1}월 ${d.getDate()}일(${WD[d.getDay()]})`; };
+  const fmtMonth = (d) => { d = new Date(d); return `${d.getFullYear()}년 ${d.getMonth() + 1}월`; };
   const fmtTime = (d) => { d = new Date(d); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const fmtRange = (s, e) => `${fmtDay(s)} ${fmtTime(s)}~${fmtTime(e)}`;
+  const fmtLen = (min) => (min >= 60 ? `${Math.floor(min / 60)}시간${min % 60 ? ` ${min % 60}분` : ""}` : `${min}분`);
   const sameDay = (a, b) => dayStart(a).getTime() === dayStart(b).getTime();
-  const mondayOf = (d) => { const x = dayStart(d); const w = (x.getDay() + 6) % 7; return addDays(x, -w); };
+  const isWeekend = (d) => d.getDay() === 0 || d.getDay() === 6;
   const pageUrl = (slug) => `${location.origin}${location.pathname}#/r/${encodeURIComponent(slug)}`;
 
   function toast(msg) {
@@ -44,10 +58,9 @@
       toast(okMsg || "복사했어요.");
       return true;
     } catch (e) {
-      // 클립보드가 막힌 환경: 직접 선택해서 복사하도록 창을 띄웁니다.
-      openModal(`<div class="sheet-body"><h2 class="section-title">직접 복사해 주세요</h2>
-        <p class="small muted">아래 내용을 길게 눌러 전체 선택 후 복사해 주세요.</p>
-        <div class="field"><textarea id="copy-fallback" rows="8">${esc(text)}</textarea></div>
+      openModal(`<div class="card-body"><h2 class="section-title">직접 복사해 주세요</h2>
+        <p class="small muted">아래 내용을 길게 눌러 전체 선택한 뒤 복사해 주세요.</p>
+        <div class="field"><textarea id="copy-fallback" rows="9">${esc(text)}</textarea></div>
         <div class="form-actions"><button class="btn" data-close>닫기</button></div></div>`);
       const ta = document.getElementById("copy-fallback");
       ta.focus(); ta.select();
@@ -58,15 +71,15 @@
   // 휴대폰 공유창(카카오톡 선택 가능). 공유창이 없으면 복사로 대신합니다.
   async function shareText(text, title) {
     if (navigator.share) {
-      try { await navigator.share({ title: title || "홍보 일정 안내", text }); return; }
+      try { await navigator.share({ title: title || `${SCHOOL} 홍보 방문 안내`, text }); return; }
       catch (e) { if (e && e.name === "AbortError") return; }
     }
-    const ok = await copyText(text, "복사했어요. 카카오톡 대화창에 붙여넣어 주세요.");
-    if (ok) setTimeout(() => toast("복사했어요. 카카오톡 대화창에 붙여넣어 주세요."), 0);
+    await copyText(text, "복사했어요. 카카오톡 대화창에 붙여넣어 주세요.");
   }
 
+  const VARS = ["학교명", "담당자", "일시", "장소", "대상", "요청사항", "사용자", "연락처", "링크", "페이지제목"];
   function fillTemplate(tpl, vars) {
-    return String(tpl || "").replace(/\{(학교명|담당자|일시|장소|대상|사용자|연락처|링크|페이지제목|요청사항)\}/g, (_, k) => (vars[k] == null || vars[k] === "" ? "-" : vars[k]));
+    return String(tpl || "").replace(new RegExp(`\\{(${VARS.join("|")})\\}`, "g"), (_, k) => (vars[k] == null || vars[k] === "" ? "-" : vars[k]));
   }
   function confirmMessage(page, b) {
     return fillTemplate(page.confirm_template || API.DEFAULT_CONFIRM, {
@@ -81,16 +94,46 @@
   }
 
   function openModal(html) {
-    $modal.innerHTML = `<div class="modal-back" data-close-back><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+    $modal.innerHTML = `<div class="modal-back"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
     const back = $modal.firstElementChild;
-    back.addEventListener("click", (e) => {
-      if (e.target === back || e.target.closest("[data-close]")) closeModal();
-    });
+    back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-close]")) closeModal(); });
     const first = $modal.querySelector("button, input, textarea, select");
     if (first) first.focus();
   }
   function closeModal() { $modal.innerHTML = ""; }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  // 하루의 시간 칸
+  function rowsFor(p) {
+    const unit = Number(p.slot_minutes) || 30;
+    const [sh, sm] = (p.day_start || "09:00").split(":").map(Number);
+    const [eh, em] = (p.day_end || "18:00").split(":").map(Number);
+    const out = [];
+    for (let m = sh * 60 + sm; m + unit <= eh * 60 + em; m += unit) out.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+    return out;
+  }
+
+  // 월 달력. dayFn(d) → { disabled, cls, sub, dots }
+  function monthCal(month, dayFn, selected) {
+    const first = monthStart(month);
+    const lead = first.getDay();
+    const daysIn = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const today = new Date();
+    let html = WD.map((w, i) => `<div class="dow ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</div>`).join("");
+    for (let i = 0; i < lead; i++) html += `<div class="day blank" aria-hidden="true"></div>`;
+    for (let i = 1; i <= daysIn; i++) {
+      const d = new Date(first.getFullYear(), first.getMonth(), i);
+      const o = dayFn(d) || {};
+      const cls = ["day", o.cls || "", d.getDay() === 0 ? "sun" : d.getDay() === 6 ? "sat" : "", sameDay(d, today) ? "today" : "", selected && sameDay(d, selected) ? "selected" : ""].join(" ");
+      html += `<button type="button" class="${cls}" data-day="${d.toISOString()}" ${o.disabled ? "disabled" : ""} aria-label="${fmtDay(d)}${o.aria ? " " + o.aria : ""}" ${selected && sameDay(d, selected) ? 'aria-pressed="true"' : ""}>
+        <span class="d">${i}</span><span class="dots">${o.dots || ""}</span>${o.sub ? `<span class="sub">${o.sub}</span>` : ""}</button>`;
+    }
+    return `<div class="cal">${html}</div>`;
+  }
+  function calHead(month, id, canPrev, canNext) {
+    return `<div class="cal-head"><button type="button" class="btn icon-btn" id="${id}-prev" aria-label="이전 달" ${canPrev ? "" : "disabled"}>‹</button>
+      <strong>${fmtMonth(month)}</strong><button type="button" class="btn icon-btn" id="${id}-next" aria-label="다음 달" ${canNext ? "" : "disabled"}>›</button></div>`;
+  }
 
   // ---------- 공통 틀 ----------
   function chrome(inner, opts = {}) {
@@ -101,287 +144,299 @@
     const right = opts.publicView
       ? ""
       : me
-        ? `<span class="who">${esc(me.name || me.email)}${me.role === "admin" ? " · 관리자" : ""}</span>
-           <a class="btn btn-sm" href="#/app">내 시트</a>
+        ? `<span class="who">${esc(me.name || me.email)} 선생님</span>
+           ${me.role === "admin" ? `<a class="btn btn-sm btn-ghost" href="#/admin">관리</a>` : ""}
+           <a class="btn btn-sm" href="#/app">내 페이지</a>
            <button class="btn btn-sm btn-ghost" id="logout">로그아웃</button>`
         : `<a class="btn btn-sm" href="#/login">로그인</a>`;
     $app.innerHTML = `${demoBar}
-      <header class="topbar"><div class="wrap">
-        <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>홍보 예약 시트</a>
+      <header class="topbar" ${opts.publicView ? "hidden" : ""}><div class="wrap">
+        <a class="brand" href="${opts.publicView ? "javascript:void(0)" : "#/"}"><img src="${ASSET.logo}" alt="${SCHOOL} Incheon Polytechnic School"><span class="svc">고교 방문 홍보 예약</span></a>
         <div class="top-actions">${right}</div>
       </div></header>
       <main>${inner}</main>
-      <footer class="footer"><div class="wrap"><span>학교 홍보 방문 예약</span><span class="ver" title="배포일 ${esc(CFG.RELEASED || "")}">v${esc(CFG.VERSION || "1.0")}</span></div></footer>`;
+      <footer class="footer"><div class="wrap"><span>${SCHOOL} · 고교 방문 홍보 예약</span><span class="ver" title="배포일 ${esc(CFG.RELEASED || "")}">v${esc(CFG.VERSION || "")}</span></div></footer>`;
     const lo = document.getElementById("logout");
     if (lo) lo.onclick = async () => { await API.signOut(); state.me = null; location.hash = "#/"; route(); };
     const rs = document.getElementById("demo-reset");
     if (rs) rs.onclick = async () => { await API.resetDemo(); toast("예시 데이터로 되돌렸어요."); route(); };
   }
-
-  function loading(msg) {
-    chrome(`<div class="wrap sheet-page"><div class="sheet"><div class="sheet-head"></div><div class="sheet-body"><p class="muted">${esc(msg || "불러오는 중…")}</p></div></div></div>`);
-  }
+  const simpleCard = (title, body, opts) => chrome(`<div class="wrap"><div class="center-card card"><div class="card-body"><h1 class="section-title">${title}</h1>${body}</div></div></div>`, opts);
 
   // ---------- 첫 화면 ----------
   function viewHome() {
     chrome(`
-      <section class="hero">
-        <span class="blob a"></span><span class="blob b"></span><span class="dot c"></span><span class="dot d"></span><span class="dot e"></span>
-        <div class="wrap hero-inner">
-          <h1>학교 홍보 일정,<br>링크 하나로 잡으세요.</h1>
-          <p class="lead">내가 열어 둔 시간 중에서 학교 선생님이 직접 날짜와 시간을 고릅니다.<br>내 구글 캘린더 일정과 겹치는 칸은 자동으로 막히고, 확정되면 안내문자가 바로 만들어져요.</p>
+      <section class="hero"><img class="mark" src="${ASSET.emblemWhite}" alt="">
+        <div class="wrap">
+          <span class="eyebrow">${SCHOOL} · 고교 방문 홍보</span>
+          <h1>고교 방문 홍보 일정, 링크 하나로 받으세요</h1>
+          <p>선생님이 열어 둔 시간 안에서 고등학교 담당 선생님이 직접 날짜와 시간을 고릅니다. 구글 캘린더 일정과 겹치는 시간은 자동으로 막히고, 확정되면 안내문자가 바로 만들어져요.</p>
           <div class="hero-actions">
-            <a class="btn btn-cta" href="${state.me ? "#/app" : "#/login"}">${state.me ? "내 시트 열기" : "시작하기"}</a>
-            ${API.demo ? `<a class="btn btn-yellow" href="#/r/kim">신청자 화면 보기</a>` : ""}
+            <a class="btn btn-white btn-lg" href="${state.me ? "#/app" : "#/login"}">${state.me ? "내 페이지 열기" : "시작하기"}</a>
+            ${API.demo ? `<a class="btn btn-outline-white btn-lg" href="#/r/kim">신청 화면 미리보기</a>` : ""}
           </div>
-          <ul class="checks"><li>구글 캘린더 일정 자동 반영</li><li>겹치는 시간 자동 비활성화</li><li>안내문자 복사·카톡 공유</li></ul>
+          <ul class="checks"><li>구글 캘린더 일정 자동 반영</li><li>30분 단위 신청</li><li>안내문자 복사·카카오톡 공유</li></ul>
         </div>
       </section>
-      <section class="how"><div class="wrap">
-        <div class="how-grid">
-          <div><span class="cell-ref">A1</span><h3>시간 열기</h3><p>내 시트에서 방문 가능한 칸만 눌러 엽니다. 구글 캘린더에 일정이 있는 칸은 열 수 없어요.</p></div>
-          <div><span class="cell-ref">B1</span><h3>링크·QR 보내기</h3><p>내 신청 페이지 링크와 QR을 안내문자와 함께 학교에 보냅니다.</p></div>
-          <div><span class="cell-ref">C1</span><h3>확정 안내</h3><p>선생님이 칸을 고르면 바로 확정되고, 일정 안내문자를 복사하거나 카톡으로 보냅니다.</p></div>
-        </div>
-      </div></section>`);
+      <section class="steps"><div class="wrap"><div class="steps-grid">
+        <div class="step"><span class="num">1</span><h3>방문 가능한 시간 열기</h3><p>달력에서 날짜를 골라 방문할 수 있는 시간만 엽니다. 구글 캘린더에 일정이 있는 시간은 열리지 않아요.</p></div>
+        <div class="step"><span class="num">2</span><h3>링크·QR 보내기</h3><p>내 신청 페이지 링크와 QR을 안내문자와 함께 고등학교에 보냅니다.</p></div>
+        <div class="step"><span class="num">3</span><h3>확정 안내 보내기</h3><p>담당 선생님이 시간을 고르면 바로 확정되고, 안내문자를 복사하거나 카카오톡으로 보냅니다.</p></div>
+      </div></div></section>`);
   }
 
   // ---------- 로그인 ----------
-  function viewLogin() {
-    const g = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
+  const GOOGLE_ICON = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
+  function viewLogin(asAdmin) {
     const body = API.demo
-      ? `<p class="muted">체험 모드에서는 구글 로그인 대신 역할을 골라 들어갑니다.</p>
-         <div class="row"><button class="btn btn-yellow" id="as-user">사용자로 체험</button><button class="btn btn-lav" id="as-admin">관리자로 체험</button></div>`
-      : `<p class="muted">관리자가 등록한 구글 계정으로 로그인해 주세요. 로그인할 때 캘린더의 '바쁨' 시간만 읽도록 허용하면, 일정이 있는 칸이 자동으로 막힙니다. 일정 제목이나 내용은 읽지 않아요.</p>
-         <div class="row"><button class="btn google-btn" id="google">${g} Google로 로그인</button></div>`;
-    chrome(`<div class="wrap"><div class="center-card"><p class="file-name">login.xlsx</p><div class="sheet"><div class="sheet-head"></div>
-      <div class="sheet-body"><div class="title-block"><h1>로그인</h1></div>${body}<p class="error" id="login-err" hidden></p></div></div></div></div>`);
+      ? `<p class="muted">체험 모드에서는 구글 로그인 대신 아래 버튼으로 들어갑니다.</p>
+         <button class="btn btn-primary" id="demo-in">${asAdmin ? "관리자로 체험하기" : "체험하기"}</button>`
+      : `<p class="muted">등록된 구글 계정으로 로그인해 주세요. 캘린더는 '바쁜 시간'만 읽어서 겹치는 시간을 막는 데 씁니다. 일정 제목이나 내용은 읽지 않아요.</p>
+         <button class="btn google-btn" id="google">${GOOGLE_ICON} Google로 로그인</button>`;
+    simpleCard("로그인", `${body}<p class="error" id="login-err" hidden></p>`);
     const err = document.getElementById("login-err");
-    const go = async (role) => {
+    const go = async () => {
       try {
-        state.me = await API.signIn(role);
-        if (state.me) { location.hash = "#/app"; }
+        state.me = await API.signIn(asAdmin ? "admin" : "user");
+        if (state.me) location.hash = asAdmin ? "#/admin" : "#/app";
       } catch (e) { err.textContent = e.message; err.hidden = false; }
     };
-    if (API.demo) {
-      document.getElementById("as-user").onclick = () => go("user");
-      document.getElementById("as-admin").onclick = () => go("admin");
-    } else {
-      document.getElementById("google").onclick = () => go();
-    }
+    (document.getElementById("demo-in") || document.getElementById("google")).onclick = go;
   }
 
   async function viewNotRegistered() {
     const email = API.sessionEmail ? await API.sessionEmail() : "";
-    chrome(`<div class="wrap"><div class="center-card"><div class="sheet"><div class="sheet-head"></div><div class="sheet-body">
-      <div class="title-block"><h1>등록되지 않은 계정이에요</h1>
-      <p>${esc(email)} 계정은 아직 사용자로 등록되지 않았어요. 관리자에게 이 이메일을 등록해 달라고 요청한 뒤 다시 로그인해 주세요.</p></div>
-      <div class="row"><button class="btn" id="out">다른 계정으로 로그인</button></div></div></div></div></div>`);
+    simpleCard("아직 사용 등록이 안 된 계정이에요",
+      `<p class="muted">${esc(email)} 계정은 아직 등록되지 않았어요. 홍보 담당 부서에 이 이메일 등록을 요청한 뒤 다시 로그인해 주세요.</p>
+       <div class="row"><button class="btn" id="out">다른 계정으로 로그인</button></div>`);
     document.getElementById("out").onclick = async () => { await API.signOut(); location.hash = "#/login"; };
   }
 
-  // ---------- 사용자 대시보드 ----------
-  const TABS = [
-    ["open", "열린 시간"],
-    ["bookings", "예약 목록"],
-    ["share", "공유"],
-    ["settings", "페이지 설정"],
-  ];
+  // ---------- 내 페이지 ----------
+  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["share", "공유"], ["settings", "페이지 설정"]];
 
   async function viewApp(tab) {
     if (!state.me) { location.hash = "#/login"; return; }
-    if (!state.me.active) {
-      chrome(`<div class="wrap"><div class="center-card"><div class="sheet"><div class="sheet-head"></div><div class="sheet-body"><h1>사용이 정지된 계정이에요</h1><p class="muted">관리자에게 문의해 주세요.</p></div></div></div></div>`);
-      return;
-    }
-    const tabs = TABS.concat(state.me.role === "admin" ? [["admin", "관리자"]] : []);
-    state.tab = tabs.some(([k]) => k === tab) ? tab : "open";
-    chrome(`<div class="wrap sheet-page">
-      <p class="file-name">${esc(state.me.slug)}_홍보예약.xlsx</p>
-      <div class="sheet"><div class="sheet-head"></div><div class="sheet-body" id="pane"></div></div>
-      <nav class="tabs" role="tablist" aria-label="내 시트 메뉴">
-        ${tabs.map(([k, l]) => `<button role="tab" aria-selected="${k === state.tab}" data-tab="${k}">${l}</button>`).join("")}
-      </nav></div>`);
+    if (!state.me.active) { simpleCard("사용이 멈춘 계정이에요", `<p class="muted">홍보 담당 부서에 문의해 주세요.</p>`); return; }
+    const cur = TABS.some(([k]) => k === tab) ? tab : "open";
+    chrome(`<div class="wrap page">
+      <div class="page-head"><div><h1>${esc(state.me.name)} 선생님의 홍보 예약</h1><p>신청 페이지: <a href="#/r/${esc(state.me.slug)}">/r/${esc(state.me.slug)}</a></p></div></div>
+      <div class="card"><nav class="tabs" role="tablist" aria-label="내 페이지 메뉴" style="padding:0 12px">
+        ${TABS.map(([k, l]) => `<button role="tab" aria-selected="${k === cur}" data-tab="${k}">${l}</button>`).join("")}
+      </nav><div class="card-body" id="pane"></div></div></div>`);
     document.querySelectorAll("[data-tab]").forEach((b) => { b.onclick = () => { location.hash = "#/app/" + b.dataset.tab; }; });
     const pane = document.getElementById("pane");
     try {
-      if (state.tab === "open") await paneOpen(pane);
-      else if (state.tab === "bookings") await paneBookings(pane);
-      else if (state.tab === "share") paneShare(pane);
-      else if (state.tab === "settings") paneSettings(pane);
-      else if (state.tab === "admin") await paneAdmin(pane);
+      if (cur === "open") await paneOpen(pane);
+      else if (cur === "bookings") await paneBookings(pane);
+      else if (cur === "share") paneShare(pane);
+      else paneSettings(pane);
     } catch (e) {
       pane.innerHTML = `<p class="error">${esc(e.message)}</p>`;
     }
   }
 
-  // 하루의 칸 목록
-  function rowsFor(p) {
-    const unit = Number(p.slot_minutes) || 30;
-    const [sh, sm] = (p.day_start || "09:00").split(":").map(Number);
-    const [eh, em] = (p.day_end || "18:00").split(":").map(Number);
-    const out = [];
-    for (let m = sh * 60 + sm; m + unit <= eh * 60 + em; m += unit) out.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
-    return out;
-  }
-
-  function gridTable(days, rows, cellHtml) {
-    const today = new Date();
-    return `<div class="grid-scroll"><table class="slots">
-      <thead><tr><th class="corner"></th>${days.map((d, i) => `<th class="${sameDay(d, today) ? "today" : ""}"><span class="col">${COLS[i]}</span>${fmtDay(d)}</th>`).join("")}</tr></thead>
-      <tbody>${rows.map((r, ri) => `<tr><th class="rowh" scope="row"><span class="n">${ri + 1}</span>${r}</th>${days.map((d, di) => `<td>${cellHtml(d, r, di, ri)}</td>`).join("")}</tr>`).join("")}</tbody>
-    </table></div>`;
-  }
-
-  // 열린 시간 편집
+  // 열린 시간 (월 달력 → 날짜 선택 → 시간 칩)
   async function paneOpen(pane) {
     const p = state.me;
-    if (!state.weekStart) state.weekStart = mondayOf(new Date());
-    const from = state.weekStart;
-    const to = addDays(from, 7);
-    const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
-    const rows = rowsFor(p);
     const unit = Number(p.slot_minutes) || 30;
+    const rows = rowsFor(p);
+    if (!state.month) state.month = monthStart(new Date());
+    const m0 = state.month, m1 = addMonths(m0, 1);
+    if (!state.day || state.day < m0 || state.day >= m1) {
+      const t = dayStart(new Date());
+      state.day = t >= m0 && t < m1 ? t : m0;
+    }
     pane.innerHTML = `<p class="muted">불러오는 중…</p>`;
     const [open, busy, bookings] = await Promise.all([
-      API.listOpen(from.toISOString(), to.toISOString()),
-      API.myBusy(from.toISOString(), to.toISOString()).catch(() => []),
+      API.listOpen(m0.toISOString(), m1.toISOString()),
+      API.myBusy(m0.toISOString(), m1.toISOString()).catch(() => []),
       API.listBookings(),
     ]);
     let openSet = T.merge(open);
     const live = bookings.filter((b) => b.status === "confirmed");
 
-    const cellInfo = (d, r) => {
+    const cell = (d, r) => {
       const s = atTime(d, r), e = addMin(s, unit);
       const bk = live.find((b) => T.overlaps(b.start_at, b.end_at, s, e));
       if (bk) return { s, e, kind: "booked", label: bk.school };
-      if (T.ms(s) < Date.now()) return { s, e, kind: "past" };
+      if (T.ms(s) <= Date.now()) return { s, e, kind: "past" };
       const isBusy = busy.some((b) => T.overlaps(b.start_at, b.end_at, s, e));
       const isOpen = T.covered(openSet, s, e);
       if (isBusy) return { s, e, kind: isOpen ? "busy-open" : "busy" };
       return { s, e, kind: isOpen ? "open" : "closed" };
     };
+    const daySummary = (d) => {
+      let openMin = 0;
+      for (const r of rows) { const c = cell(d, r); if (c.kind === "open") openMin += unit; }
+      const bk = live.filter((b) => sameDay(b.start_at, d)).length;
+      const bz = busy.some((b) => T.overlaps(b.start_at, b.end_at, d, addDays(d, 1)));
+      return { openMin, bk, bz };
+    };
 
     pane.innerHTML = `
-      <div class="title-block"><h1>열린 시간</h1>
-        <p>신청자가 고를 수 있게 열어 둘 칸을 눌러 주세요. 다시 누르면 닫힙니다. 끌어서 여러 칸을 한 번에 바꿀 수 있어요.\n구글 캘린더 일정이 있는 칸과 이미 예약된 칸은 신청자 화면에서 자동으로 비활성화돼요.</p></div>
-      <div class="grid-tools">
-        <div class="week-nav"><button class="btn btn-sm" id="prev" aria-label="이전 주">◀</button><strong>${fmtDay(from)} 주</strong><button class="btn btn-sm" id="next" aria-label="다음 주">▶</button></div>
-        <div class="row"><button class="btn btn-sm btn-yellow" id="open-week">평일 전부 열기</button><button class="btn btn-sm" id="close-week">이번 주 모두 닫기</button></div>
+      <div class="list-head"><div><h2 class="section-title">열린 시간</h2><p class="hint-line">날짜를 고른 뒤, 방문할 수 있는 시간을 눌러 열어 주세요. 다시 누르면 닫힙니다.</p></div>
+        <div class="row"><button class="btn btn-sm btn-soft" id="open-month">이번 달 평일 모두 열기</button><button class="btn btn-sm" id="close-month">이번 달 모두 닫기</button></div></div>
+      <div class="cal-wrap">
+        <div><div id="cal"></div>
+          <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--busy-ink);border:0"></i>구글 일정</span></div></div>
+        <div class="slots-panel" id="panel"></div>
       </div>
-      <div class="legend"><span><i class="sw-open"></i>열림</span><span><i class="sw-closed"></i>닫힘</span><span><i class="sw-busy"></i>구글 일정</span><span><i class="sw-booked"></i>예약됨</span></div>
-      <div id="grid"></div>
-      <p class="grid-note">${p.google_connected ? "구글 캘린더 연결됨 · 바쁜 시간만 읽어 와요." : "구글 캘린더가 아직 연결되지 않았어요. 로그아웃 후 다시 로그인하면서 캘린더 접근을 허용해 주세요."} 한 칸 = ${unit}분, 한 번 방문 = ${p.duration_minutes}분</p>`;
+      <p class="hint-line">${p.google_connected ? "구글 캘린더 연결됨 · 바쁜 시간만 읽어 와요." : "구글 캘린더가 아직 연결되지 않았어요. 로그아웃 후 다시 로그인하면서 캘린더 접근을 허용해 주세요."} 시간 칸은 ${unit}분 단위예요.</p>`;
 
-    const $grid = pane.querySelector("#grid");
-    const draw = () => {
-      $grid.innerHTML = gridTable(days, rows, (d, r) => {
-        const c = cellInfo(d, r);
-        const dis = c.kind === "booked" || c.kind === "past" || c.kind === "busy";
-        const label = c.kind === "booked" ? esc(c.label) : c.kind === "busy" || c.kind === "busy-open" ? "일정" : "";
-        const aria = `${fmtDay(d)} ${r} ${({ open: "열림", closed: "닫힘", busy: "구글 일정", "busy-open": "열림, 구글 일정 있음", booked: "예약됨", past: "지난 시간" })[c.kind]}`;
-        return `<button type="button" class="slot s-${c.kind === "past" ? "closed s-past" : c.kind}" data-d="${d.toISOString()}" data-r="${r}" aria-label="${esc(aria)}" ${dis ? "disabled" : ""}>${label}</button>`;
-      });
+    const $cal = pane.querySelector("#cal");
+    const $panel = pane.querySelector("#panel");
+    const today = dayStart(new Date());
+
+    const drawCal = () => {
+      $cal.innerHTML = calHead(m0, "om", true, true) + monthCal(m0, (d) => {
+        const past = d < today;
+        const s = daySummary(d);
+        const dots = (s.openMin ? `<i class="dot open"></i>` : "") + `<i class="dot"></i>`.repeat(Math.min(s.bk, 3)) + (s.bz ? `<i class="dot busy"></i>` : "");
+        return { disabled: past, sub: s.openMin ? fmtLen(s.openMin) : "", dots, cls: s.openMin ? "avail" : "" };
+      }, state.day);
+      $cal.querySelector("#om-prev").onclick = () => { state.month = addMonths(m0, -1); state.day = null; paneOpen(pane); };
+      $cal.querySelector("#om-next").onclick = () => { state.month = addMonths(m0, 1); state.day = null; paneOpen(pane); };
+      $cal.querySelectorAll(".day[data-day]").forEach((b) => { b.onclick = () => { state.day = new Date(b.dataset.day); drawCal(); drawPanel(); }; });
     };
-    draw();
 
+    const label = { open: "열림", closed: "닫힘", busy: "구글 일정", "busy-open": "구글 일정", booked: "", past: "" };
+    const drawPanel = () => {
+      const d = state.day;
+      const past = d < today;
+      $panel.innerHTML = `<div class="list-head"><h3>${fmtDay(d)}</h3>
+          ${past ? "" : `<div class="row"><button class="btn btn-sm btn-soft" id="day-open">이 날 모두 열기</button><button class="btn btn-sm" id="day-close">모두 닫기</button></div>`}</div>
+        <div class="chips" id="chips">${rows.map((r) => {
+          const c = cell(d, r);
+          const dis = c.kind === "past" || c.kind === "busy" || c.kind === "booked";
+          const sub = c.kind === "booked" ? esc(c.label) : label[c.kind];
+          return `<button type="button" class="chip st-${c.kind}" data-r="${r}" ${dis ? "disabled" : ""} aria-label="${r} ${sub || "지난 시간"}">${r}${sub ? `<small>${sub}</small>` : ""}</button>`;
+        }).join("")}</div>
+        <div class="legend"><span><i class="lg-open"></i>열림</span><span><i class="lg-closed"></i>닫힘</span><span><i class="lg-busy"></i>구글 일정</span><span><i class="lg-booked"></i>예약됨</span></div>`;
+      const $chips = $panel.querySelector("#chips");
+      let paint = null;
+      const apply = (el) => {
+        const s = atTime(d, el.dataset.r);
+        setCell(s, addMin(s, unit), paint);
+        const c = cell(d, el.dataset.r);
+        el.className = `chip st-${c.kind}`;
+        el.innerHTML = `${el.dataset.r}<small>${label[c.kind]}</small>`;
+      };
+      const chipOf = (t) => { const el = t && t.closest ? t.closest(".chip") : null; return el && !el.disabled ? el : null; };
+      $chips.addEventListener("pointerdown", (e) => {
+        const el = chipOf(e.target); if (!el) return;
+        e.preventDefault();
+        const k = cell(d, el.dataset.r).kind;
+        paint = !(k === "open" || k === "busy-open");
+        apply(el);
+      });
+      $chips.addEventListener("pointerover", (e) => { if (paint === null) return; const el = chipOf(e.target); if (el) apply(el); });
+      $chips.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const el = chipOf(e.target); if (!el) return;
+        e.preventDefault();
+        const k = cell(d, el.dataset.r).kind; paint = !(k === "open" || k === "busy-open"); apply(el); endPaint();
+      });
+      const o = $panel.querySelector("#day-open"), c = $panel.querySelector("#day-close");
+      if (o) o.onclick = () => { setDay(d, true); drawPanel(); drawCal(); persist(); };
+      if (c) c.onclick = () => { setDay(d, false); drawPanel(); drawCal(); persist(); };
+      function endPaint() { if (paint !== null) { paint = null; drawCal(); persist(); } }
+      window.onpointerup = endPaint;
+    };
+
+    function setCell(s, e, makeOpen) {
+      if (makeOpen) { openSet = T.merge(openSet.concat([{ start_at: s.toISOString(), end_at: e.toISOString() }])); return; }
+      const S = T.ms(s), E = T.ms(e), next = [];
+      for (const x of openSet) {
+        const a = T.ms(x.start_at), b = T.ms(x.end_at);
+        if (b <= S || a >= E) { next.push(x); continue; }
+        if (a < S) next.push({ start_at: x.start_at, end_at: new Date(S).toISOString() });
+        if (b > E) next.push({ start_at: new Date(E).toISOString(), end_at: x.end_at });
+      }
+      openSet = T.merge(next);
+    }
+    function setDay(d, makeOpen) {
+      rows.forEach((r) => { const s = atTime(d, r); if (T.ms(s) > Date.now()) setCell(s, addMin(s, unit), makeOpen); });
+    }
     let saveTimer = null;
-    const persist = () => {
+    function persist() {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
-        try { await API.saveOpen(from.toISOString(), to.toISOString(), openSet); toast("저장했어요."); }
+        try { await API.saveOpen(m0.toISOString(), m1.toISOString(), openSet); toast("저장했어요."); }
         catch (e) { toast(e.message); }
       }, 500);
-    };
-    const setCell = (s, e, makeOpen) => {
-      if (makeOpen) openSet = T.merge(openSet.concat([{ start_at: s.toISOString(), end_at: e.toISOString() }]));
-      else {
-        const S = T.ms(s), E = T.ms(e);
-        const next = [];
-        for (const x of openSet) {
-          const a = T.ms(x.start_at), b = T.ms(x.end_at);
-          if (b <= S || a >= E) { next.push(x); continue; }
-          if (a < S) next.push({ start_at: x.start_at, end_at: new Date(S).toISOString() });
-          if (b > E) next.push({ start_at: new Date(E).toISOString(), end_at: x.end_at });
-        }
-        openSet = T.merge(next);
-      }
-    };
+    }
 
-    // 누르고 끌어서 칠하기
-    let paint = null;
-    const cellFrom = (el) => (el && el.classList && el.classList.contains("slot") && !el.disabled ? el : null);
-    const apply = (el) => {
-      const s = atTime(new Date(el.dataset.d), el.dataset.r);
-      setCell(s, addMin(s, unit), paint);
-      const k = cellInfo(new Date(el.dataset.d), el.dataset.r).kind;
-      el.className = `slot s-${k}`;
-      el.textContent = k === "busy-open" ? "일정" : "";
+    pane.querySelector("#open-month").onclick = () => {
+      for (let d = new Date(m0); d < m1; d = addDays(d, 1)) if (!isWeekend(d)) setDay(d, true);
+      drawCal(); drawPanel(); persist();
     };
-    $grid.addEventListener("pointerdown", (e) => {
-      const el = cellFrom(e.target);
-      if (!el) return;
-      e.preventDefault();
-      const k = cellInfo(new Date(el.dataset.d), el.dataset.r).kind;
-      paint = !(k === "open" || k === "busy-open");
-      apply(el);
-    });
-    $grid.addEventListener("pointerover", (e) => { if (paint === null) return; const el = cellFrom(e.target); if (el) apply(el); });
-    const end = () => { if (paint !== null) { paint = null; persist(); } };
-    window.addEventListener("pointerup", end, { once: false });
-    $grid.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      const el = cellFrom(e.target); if (!el) return;
-      e.preventDefault();
-      const k = cellInfo(new Date(el.dataset.d), el.dataset.r).kind;
-      paint = !(k === "open" || k === "busy-open"); apply(el); end();
-    });
-
-    pane.querySelector("#prev").onclick = () => { state.weekStart = addDays(from, -7); paneOpen(pane); };
-    pane.querySelector("#next").onclick = () => { state.weekStart = addDays(from, 7); paneOpen(pane); };
-    pane.querySelector("#open-week").onclick = () => {
-      days.forEach((d) => { if (d.getDay() === 0 || d.getDay() === 6) return; rows.forEach((r) => { const s = atTime(d, r); if (T.ms(s) > Date.now()) setCell(s, addMin(s, unit), true); }); });
-      draw(); persist();
+    pane.querySelector("#close-month").onclick = () => {
+      for (let d = new Date(m0); d < m1; d = addDays(d, 1)) setDay(d, false);
+      drawCal(); drawPanel(); persist();
     };
-    pane.querySelector("#close-week").onclick = () => {
-      days.forEach((d) => rows.forEach((r) => { const s = atTime(d, r); if (T.ms(s) > Date.now()) setCell(s, addMin(s, unit), false); }));
-      draw(); persist();
-    };
+    drawCal();
+    drawPanel();
   }
 
-  // 예약 목록
+  // 예약 목록 (월 달력 + 그 달 목록)
   async function paneBookings(pane) {
-    const list = await API.listBookings();
-    const now = Date.now();
-    const upcoming = list.filter((b) => T.ms(b.end_at) >= now);
-    const past = list.filter((b) => T.ms(b.end_at) < now);
+    if (!state.month) state.month = monthStart(new Date());
+    const m0 = state.month, m1 = addMonths(m0, 1);
+    const all = await API.listBookings();
+    const inMonth = all.filter((b) => T.ms(b.start_at) >= T.ms(m0) && T.ms(b.start_at) < T.ms(m1));
+    const confirmed = inMonth.filter((b) => b.status === "confirmed");
+    const upcoming = confirmed.filter((b) => T.ms(b.end_at) >= Date.now());
+    if (state.bookDay && (state.bookDay < m0 || state.bookDay >= m1)) state.bookDay = null;
+    const shown = state.bookDay ? inMonth.filter((b) => sameDay(b.start_at, state.bookDay)) : inMonth;
+
     const item = (b) => `<div class="item ${b.status === "cancelled" ? "cancelled" : ""}">
-        <div class="when">${fmtDay(b.start_at)}<small>${fmtTime(b.start_at)}~${fmtTime(b.end_at)}</small></div>
-        <div class="meta"><strong>${esc(b.school)}</strong> ${b.status === "cancelled" ? `<span class="pill off">취소됨</span>` : ""}
-          <p>${esc(b.contact_name)} · ${esc(b.phone)} · ${esc(b.target || "-")} · ${esc(b.place || state.me.default_place || "-")}</p>
+        <div class="when"><b>${fmtDay(b.start_at)}</b><span>${fmtTime(b.start_at)}~${fmtTime(b.end_at)}</span></div>
+        <div class="meta"><strong>${esc(b.school)}</strong> ${b.status === "cancelled" ? `<span class="badge off">취소됨</span>` : T.ms(b.end_at) < Date.now() ? `<span class="badge off">방문 완료</span>` : `<span class="badge ok">확정</span>`}
+          <p>${esc(b.contact_name)} 선생님 · <span style="white-space:nowrap">${esc(b.phone)}</span> · ${esc(b.target || "대상 미입력")} · ${esc(b.place || state.me.default_place || "장소 미입력")}</p>
           ${b.request ? `<p>요청: ${esc(b.request)}</p>` : ""}</div>
-        <div class="acts">${b.status === "confirmed" ? `<button class="btn btn-sm btn-yellow" data-msg="${b.id}">안내문자</button><button class="btn btn-sm btn-danger" data-cancel="${b.id}">취소</button>` : ""}</div>
+        <div class="acts">${b.status === "confirmed" ? `<button class="btn btn-sm btn-soft" data-msg="${b.id}">안내문자</button><button class="btn btn-sm btn-danger" data-cancel="${b.id}">취소</button>` : ""}</div>
       </div>`;
-    pane.innerHTML = `<div class="title-block"><h1>예약 목록</h1><p>신청이 들어오면 바로 확정돼요. 확정된 일정의 안내문자를 복사하거나 카톡으로 보낼 수 있어요.</p></div>
-      ${upcoming.length ? `<div class="list">${upcoming.map(item).join("")}</div>` : `<div class="empty"><p class="hand">아직 들어온 신청이 없어요.</p><p class="small">공유 탭에서 링크나 QR을 학교에 보내 보세요.</p></div>`}
-      ${past.length ? `<h2 class="section-title">지난 방문</h2><div class="list">${past.map(item).join("")}</div>` : ""}`;
+
+    pane.innerHTML = `
+      <div class="list-head"><h2 class="section-title">예약 목록</h2>
+        <div class="month-summary"><div class="stat"><b>${confirmed.length}건</b><span>이번 달 확정</span></div><div class="stat"><b>${upcoming.length}건</b><span>남은 방문</span></div><div class="stat"><b>${inMonth.length - confirmed.length}건</b><span>취소</span></div></div></div>
+      <div class="stack">
+        <div id="bcal" class="bcal"></div>
+        <div class="stack">
+          <div class="list-head"><h3>${state.bookDay ? fmtDay(state.bookDay) : `${m0.getMonth() + 1}월 전체`} 예약 ${shown.length}건</h3>${state.bookDay ? `<button class="btn btn-sm" id="all-month">${m0.getMonth() + 1}월 전체 보기</button>` : ""}</div>
+          ${shown.length ? `<div class="list">${shown.map(item).join("")}</div>` : `<div class="empty-pane">${state.bookDay ? "이 날은 예약이 없어요." : "이 달에는 아직 예약이 없어요. 공유 탭에서 링크나 QR을 보내 보세요."}</div>`}
+        </div>
+      </div>`;
+    const $cal = pane.querySelector("#bcal");
+    $cal.innerHTML = calHead(m0, "bm", true, true) + monthCal(m0, (d) => {
+      const n = confirmed.filter((b) => sameDay(b.start_at, d)).length;
+      return { cls: n ? "avail" : "", dots: `<i class="dot"></i>`.repeat(Math.min(n, 4)), sub: n ? `${n}건` : "", aria: n ? `예약 ${n}건` : "" };
+    }, state.bookDay);
+    $cal.querySelector("#bm-prev").onclick = () => { state.month = addMonths(m0, -1); state.bookDay = null; paneBookings(pane); };
+    $cal.querySelector("#bm-next").onclick = () => { state.month = addMonths(m0, 1); state.bookDay = null; paneBookings(pane); };
+    $cal.querySelectorAll(".day[data-day]").forEach((b) => {
+      b.onclick = () => { const d = new Date(b.dataset.day); state.bookDay = state.bookDay && sameDay(state.bookDay, d) ? null : d; paneBookings(pane); };
+    });
+    const am = pane.querySelector("#all-month");
+    if (am) am.onclick = () => { state.bookDay = null; paneBookings(pane); };
+
     pane.querySelectorAll("[data-msg]").forEach((btn) => {
       btn.onclick = () => {
-        const b = list.find((x) => x.id === btn.dataset.msg);
-        const text = confirmMessage(state.me, b);
-        openModal(`<div class="sheet-head"></div><div class="sheet-body"><h2 class="section-title">${esc(b.school)} 안내문자</h2>
-          <div class="field"><label for="msg-edit">보내기 전에 고칠 수 있어요</label><textarea id="msg-edit" rows="11">${esc(text)}</textarea></div>
-          <div class="form-actions"><button class="btn" data-close>닫기</button><button class="btn" id="m-copy">복사</button><button class="btn btn-yellow" id="m-share">카톡으로 보내기</button></div></div>`);
+        const b = all.find((x) => x.id === btn.dataset.msg);
+        openModal(`<div class="card-body"><h2 class="section-title">${esc(b.school)} 안내문자</h2>
+          <div class="field"><label for="msg-edit">보내기 전에 고칠 수 있어요</label><textarea id="msg-edit" rows="12">${esc(confirmMessage(state.me, b))}</textarea></div>
+          <div class="form-actions"><button class="btn" data-close>닫기</button><button class="btn" id="m-copy">복사</button><button class="btn btn-kakao" id="m-share">카카오톡으로 보내기</button></div></div>`);
         document.getElementById("m-copy").onclick = () => copyText(document.getElementById("msg-edit").value);
         document.getElementById("m-share").onclick = () => shareText(document.getElementById("msg-edit").value);
       };
     });
     pane.querySelectorAll("[data-cancel]").forEach((btn) => {
       btn.onclick = () => {
-        const b = list.find((x) => x.id === btn.dataset.cancel);
-        openModal(`<div class="sheet-head"></div><div class="sheet-body"><h2 class="section-title">이 예약을 취소할까요?</h2>
-          <p>${esc(b.school)} · ${fmtRange(b.start_at, b.end_at)}</p><p class="small muted">취소하면 그 시간은 다시 신청할 수 있는 칸으로 돌아가요. 학교에는 따로 연락해 주세요.</p>
-          <div class="form-actions"><button class="btn" data-close>그대로 두기</button><button class="btn btn-coral" id="do-cancel">예약 취소</button></div></div>`);
+        const b = all.find((x) => x.id === btn.dataset.cancel);
+        openModal(`<div class="card-body"><h2 class="section-title">이 예약을 취소할까요?</h2>
+          <p>${esc(b.school)} · ${fmtRange(b.start_at, b.end_at)}</p><p class="small muted">취소하면 그 시간은 다시 신청할 수 있게 열려요. 학교에는 따로 연락해 주세요.</p>
+          <div class="form-actions"><button class="btn" data-close>그대로 두기</button><button class="btn btn-primary" id="do-cancel">예약 취소</button></div></div>`);
         document.getElementById("do-cancel").onclick = async () => {
           try { await API.cancelBooking(b.id); closeModal(); toast("예약을 취소했어요."); paneBookings(pane); }
           catch (e) { toast(e.message); }
@@ -395,30 +450,29 @@
     const p = state.me;
     const url = pageUrl(p.slug);
     const invite = inviteMessage(p);
-    pane.innerHTML = `<div class="title-block"><h1>신청 페이지 공유</h1><p>이 링크나 QR로 들어온 학교 선생님은 내가 열어 둔 시간 중에서만 신청할 수 있어요.</p></div>
+    pane.innerHTML = `<div><h2 class="section-title">신청 페이지 공유</h2><p class="hint-line">이 링크나 QR로 들어온 선생님은 내가 열어 둔 시간 안에서만 신청할 수 있어요.</p></div>
       <div class="share">
-        <div class="qr-box"><div id="qr" aria-label="신청 페이지 QR 코드"></div><span class="cap">찍으면 바로 신청!</span><button class="btn btn-sm" id="qr-save">QR 이미지 저장</button></div>
+        <div class="qr-box"><div id="qr" aria-label="신청 페이지 QR 코드"></div><span class="cap">휴대폰 카메라로 찍으면 바로 열려요</span><button class="btn btn-sm" id="qr-save">QR 이미지 저장</button></div>
         <div class="stack">
           <div class="field"><label for="share-url">내 신청 페이지 주소</label>
             <div class="link-row"><input id="share-url" readonly value="${esc(url)}"><button class="btn btn-sm" id="copy-url">링크 복사</button><a class="btn btn-sm" href="#/r/${esc(p.slug)}">열어 보기</a></div></div>
-          <div class="field"><label>학교에 보낼 안내문자</label><pre class="msg-preview" id="invite">${esc(invite)}</pre>
-            <span class="hint">문구는 페이지 설정 탭에서 바꿀 수 있어요.</span></div>
-          <div class="row"><button class="btn" id="copy-invite">안내문자 복사</button><button class="btn btn-yellow" id="share-invite">카톡으로 보내기</button></div>
+          <div class="field"><span class="label">고등학교에 보낼 안내문자</span><pre class="msg-preview">${esc(invite)}</pre>
+            <span class="hint">문구는 페이지 설정 › 안내문자에서 바꿀 수 있어요.</span></div>
+          <div class="row"><button class="btn" id="copy-invite">안내문자 복사</button><button class="btn btn-kakao" id="share-invite">카카오톡으로 보내기</button></div>
         </div>
       </div>`;
     const box = pane.querySelector("#qr");
-    let qrOk = false;
+    let ok = false;
     if (window.QRCode) {
-      try { new window.QRCode(box, { text: url, width: 392, height: 392, correctLevel: window.QRCode.CorrectLevel.M }); qrOk = true; }
-      catch (e) { qrOk = false; }
+      try { new window.QRCode(box, { text: url, width: 392, height: 392, colorDark: "#17254f", correctLevel: window.QRCode.CorrectLevel.M }); ok = true; }
+      catch (e) { ok = false; }
     }
-    if (!qrOk) box.innerHTML = `<p class="small muted">QR을 만들지 못했어요. 링크를 대신 보내 주세요.</p>`;
+    if (!ok) box.innerHTML = `<p class="small muted">QR을 만들지 못했어요. 링크를 대신 보내 주세요.</p>`;
     pane.querySelector("#copy-url").onclick = () => copyText(url, "링크를 복사했어요.");
     pane.querySelector("#copy-invite").onclick = () => copyText(invite, "안내문자를 복사했어요.");
     pane.querySelector("#share-invite").onclick = () => shareText(invite, p.page_title);
     pane.querySelector("#qr-save").onclick = () => {
-      const c = box.querySelector("canvas");
-      const img = box.querySelector("img");
+      const c = box.querySelector("canvas"), img = box.querySelector("img");
       const src = c ? c.toDataURL("image/png") : img ? img.src : "";
       if (!src) return;
       const a = document.createElement("a");
@@ -428,47 +482,71 @@
     };
   }
 
-  // 페이지 설정
+  // 페이지 설정 (탭으로 분류)
+  const SET_TABS = [["basic", "기본 정보"], ["time", "신청 시간"], ["message", "안내문자"], ["address", "신청 주소"]];
   function paneSettings(pane) {
     const p = state.me;
     const opt = (vals, cur, fmt) => vals.map((v) => `<option value="${v}" ${String(v) === String(cur) ? "selected" : ""}>${fmt(v)}</option>`).join("");
     const times = [];
     for (let h = 6; h <= 22; h++) for (const m of [0, 30]) times.push(`${pad(h)}:${pad(m)}`);
-    pane.innerHTML = `<div class="title-block"><h1>페이지 설정</h1><p>신청자에게 보이는 내용과 시간 단위를 정해요.</p></div>
-      <form id="set-form" class="form-grid">
-        <div class="field"><label for="f-name">내 이름(안내문자에 표시)</label><input id="f-name" required value="${esc(p.name)}"></div>
-        <div class="field"><label for="f-phone">내 연락처</label><input id="f-phone" inputmode="tel" value="${esc(p.contact_phone)}"></div>
-        <div class="field full"><label for="f-title">신청 페이지 제목</label><input id="f-title" required value="${esc(p.page_title)}"></div>
-        <div class="field full"><label for="f-intro">신청 페이지 안내 문구</label><textarea id="f-intro">${esc(p.page_intro)}</textarea></div>
-        <div class="field"><label for="f-unit">시간 칸 단위</label><select id="f-unit">${opt([10, 15, 20, 30, 60], p.slot_minutes, (v) => `${v}분`)}</select></div>
-        <div class="field"><label for="f-dur">한 번 방문 시간</label><select id="f-dur">${opt([20, 30, 40, 50, 60, 90, 120, 150, 180], p.duration_minutes, (v) => (v >= 60 ? `${Math.floor(v / 60)}시간${v % 60 ? ` ${v % 60}분` : ""}` : `${v}분`))}</select>
-          <span class="hint">칸 단위로 나누어 떨어지게 정해 주세요.</span></div>
-        <div class="field"><label for="f-start">하루 시작 시각</label><select id="f-start">${opt(times, p.day_start, (v) => v)}</select></div>
-        <div class="field"><label for="f-end">하루 끝 시각</label><select id="f-end">${opt(times, p.day_end, (v) => v)}</select></div>
-        <div class="field"><label for="f-ahead">신청 받는 기간</label><select id="f-ahead">${opt([7, 14, 21, 28, 42, 56, 90], p.days_ahead, (v) => `오늘부터 ${v}일`)}</select></div>
-        <div class="field"><label for="f-place">기본 장소</label><input id="f-place" placeholder="예: 학교 시청각실" value="${esc(p.default_place)}"></div>
-        <div class="field full"><label for="f-slug">신청 페이지 주소 끝부분</label><input id="f-slug" required pattern="[a-z0-9-]{3,30}" value="${esc(p.slug)}">
-          <span class="hint">영어 소문자, 숫자, - 만 쓸 수 있어요 (3~30자). 바꾸면 예전 링크와 QR은 더 이상 열리지 않아요.</span></div>
-        <div class="field full"><label for="f-invite">학교에 보낼 안내문자 (신청 요청)</label><textarea id="f-invite" rows="7">${esc(p.invite_template || API.DEFAULT_INVITE)}</textarea></div>
-        <div class="field full"><label for="f-confirm">확정 안내문자</label><textarea id="f-confirm" rows="9">${esc(p.confirm_template || API.DEFAULT_CONFIRM)}</textarea>
-          <span class="hint">넣을 수 있는 값: {학교명} {담당자} {일시} {장소} {대상} {요청사항} {사용자} {연락처} {링크} {페이지제목}</span></div>
-        <p class="error full" id="set-err" hidden></p>
-        <div class="form-actions full"><button class="btn btn-yellow" type="submit">저장</button></div>
+    const helper = (target) => `<div class="chips-help" data-target="${target}">${VARS.map((v) => `<button type="button" data-v="{${v}}">{${v}}</button>`).join("")}</div>`;
+    pane.innerHTML = `<div class="list-head"><h2 class="section-title">페이지 설정</h2></div>
+      <div class="subtabs" role="tablist">${SET_TABS.map(([k, l]) => `<button type="button" role="tab" data-st="${k}" aria-selected="${k === state.settingsTab}">${l}</button>`).join("")}</div>
+      <form id="set-form" class="stack">
+        <section data-sec="basic" class="form-grid">
+          <div class="field"><label for="f-name">이름 (안내문자에 표시)</label><input id="f-name" required value="${esc(p.name)}"></div>
+          <div class="field"><label for="f-phone">연락처</label><input id="f-phone" inputmode="tel" value="${esc(p.contact_phone)}" placeholder="010-0000-0000"></div>
+          <div class="field full"><label for="f-title">신청 페이지 제목</label><input id="f-title" required value="${esc(p.page_title)}"></div>
+          <div class="field full"><label for="f-intro">신청 페이지 안내 문구</label><textarea id="f-intro">${esc(p.page_intro)}</textarea></div>
+          <div class="field full"><label for="f-place">기본 방문 장소</label><input id="f-place" placeholder="예: 학교 시청각실" value="${esc(p.default_place)}"><span class="hint">신청자가 장소를 비워 두면 이 값이 안내문자에 들어가요.</span></div>
+        </section>
+        <section data-sec="time" class="form-grid">
+          <div class="field"><label for="f-unit">시간 칸 단위</label><select id="f-unit">${opt([10, 15, 20, 30, 60], p.slot_minutes, (v) => `${v}분`)}</select><span class="hint">신청자는 이 단위로 시작·끝 시간을 고릅니다.</span></div>
+          <div class="field"><label for="f-ahead">신청 받는 기간</label><select id="f-ahead">${opt([7, 14, 21, 28, 42, 56, 90], p.days_ahead, (v) => `오늘부터 ${v}일`)}</select></div>
+          <div class="field"><label for="f-start">하루 시작 시각</label><select id="f-start">${opt(times, p.day_start, (v) => v)}</select></div>
+          <div class="field"><label for="f-end">하루 끝 시각</label><select id="f-end">${opt(times, p.day_end, (v) => v)}</select></div>
+        </section>
+        <section data-sec="message" class="stack">
+          <div class="field"><label for="f-invite">신청 요청 안내문자 (고등학교에 링크와 함께 보내는 글)</label><textarea id="f-invite" rows="7">${esc(p.invite_template || API.DEFAULT_INVITE)}</textarea>${helper("f-invite")}</div>
+          <div class="field"><label for="f-confirm">확정 안내문자 (신청 완료 후 보내는 글)</label><textarea id="f-confirm" rows="10">${esc(p.confirm_template || API.DEFAULT_CONFIRM)}</textarea>${helper("f-confirm")}
+            <span class="hint">버튼을 누르면 커서 위치에 값이 들어가요. 보낼 때 실제 내용으로 바뀝니다.</span></div>
+        </section>
+        <section data-sec="address" class="stack">
+          <div class="field"><label for="f-slug">신청 페이지 주소 끝부분</label><input id="f-slug" required value="${esc(p.slug)}">
+            <span class="hint">영어 소문자, 숫자, - 만 쓸 수 있어요 (3~30자). 바꾸면 예전에 보낸 링크와 QR은 열리지 않아요.</span></div>
+          <p class="small muted">현재 주소: ${esc(pageUrl(p.slug))}</p>
+        </section>
+        <p class="error" id="set-err" hidden></p>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">저장</button></div>
       </form>`;
-    const f = pane.querySelector("#set-form");
-    f.onsubmit = async (e) => {
+    const show = () => {
+      pane.querySelectorAll("[data-sec]").forEach((s) => { s.hidden = s.dataset.sec !== state.settingsTab; });
+      pane.querySelectorAll("[data-st]").forEach((b) => b.setAttribute("aria-selected", b.dataset.st === state.settingsTab));
+    };
+    pane.querySelectorAll("[data-st]").forEach((b) => { b.onclick = () => { state.settingsTab = b.dataset.st; show(); }; });
+    show();
+    pane.querySelectorAll(".chips-help").forEach((box) => {
+      box.addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-v]"); if (!b) return;
+        const ta = document.getElementById(box.dataset.target);
+        const s = ta.selectionStart ?? ta.value.length, en = ta.selectionEnd ?? s;
+        ta.value = ta.value.slice(0, s) + b.dataset.v + ta.value.slice(en);
+        ta.focus(); ta.selectionStart = ta.selectionEnd = s + b.dataset.v.length;
+      });
+    });
+    pane.querySelector("#set-form").onsubmit = async (e) => {
       e.preventDefault();
       const err = pane.querySelector("#set-err");
       err.hidden = true;
       const v = (id) => pane.querySelector(id).value.trim();
-      const unit = Number(v("#f-unit")), dur = Number(v("#f-dur"));
-      if (dur % unit !== 0) { err.textContent = "방문 시간이 칸 단위로 나누어 떨어지지 않아요. 예: 30분 칸이면 60분, 90분."; err.hidden = false; return; }
-      if (v("#f-start") >= v("#f-end")) { err.textContent = "하루 끝 시각이 시작 시각보다 늦어야 해요."; err.hidden = false; return; }
-      if (!/^[a-z0-9-]{3,30}$/.test(v("#f-slug"))) { err.textContent = "주소는 영어 소문자, 숫자, - 로 3~30자여야 해요."; err.hidden = false; return; }
+      const bad = (tab, msg) => { state.settingsTab = tab; show(); err.textContent = msg; err.hidden = false; };
+      if (!v("#f-name") || !v("#f-title")) return bad("basic", "이름과 신청 페이지 제목을 입력해 주세요.");
+      if (v("#f-start") >= v("#f-end")) return bad("time", "하루 끝 시각이 시작 시각보다 늦어야 해요.");
+      if (!/^[a-z0-9-]{3,30}$/.test(v("#f-slug"))) return bad("address", "주소는 영어 소문자, 숫자, - 로 3~30자여야 해요.");
       try {
         state.me = await API.updateProfile({
           name: v("#f-name"), contact_phone: v("#f-phone"), page_title: v("#f-title"), page_intro: pane.querySelector("#f-intro").value,
-          slot_minutes: unit, duration_minutes: dur, day_start: v("#f-start"), day_end: v("#f-end"), days_ahead: Number(v("#f-ahead")),
+          slot_minutes: Number(v("#f-unit")), day_start: v("#f-start"), day_end: v("#f-end"), days_ahead: Number(v("#f-ahead")),
           default_place: v("#f-place"), slug: v("#f-slug"), invite_template: pane.querySelector("#f-invite").value, confirm_template: pane.querySelector("#f-confirm").value,
         });
         toast("저장했어요.");
@@ -476,141 +554,182 @@
     };
   }
 
-  // 관리자
-  async function paneAdmin(pane) {
-    const [allowed, users, all] = await Promise.all([API.listAllowed(), API.listUsers(), API.listAllBookings()]);
-    const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
-    pane.innerHTML = `<div class="title-block"><h1>관리자</h1><p>여기에 등록한 구글 계정만 로그인해서 사용자로 쓸 수 있어요.</p></div>
-      <form id="add-form" class="row">
-        <div class="field" style="flex:1 1 240px"><label for="a-email">구글 계정 이메일</label><input id="a-email" type="email" required placeholder="name@gmail.com"></div>
-        <div class="field"><label for="a-role">역할</label><select id="a-role"><option value="user">사용자</option><option value="admin">관리자</option></select></div>
-        <button class="btn btn-yellow" type="submit" style="align-self:end">등록</button>
-      </form>
-      <div class="table-scroll"><table class="data"><thead><tr><th>등록된 이메일</th><th>역할</th><th>가입</th><th></th></tr></thead><tbody>
-        ${allowed.map((a) => { const u = users.find((x) => (x.email || "").toLowerCase() === a.email); return `<tr><td>${esc(a.email)}</td><td><span class="pill ${a.role === "admin" ? "admin" : "on"}">${a.role === "admin" ? "관리자" : "사용자"}</span></td><td>${u ? "가입함" : "아직"}</td><td><button class="btn btn-sm btn-danger" data-rm="${esc(a.email)}">등록 해제</button></td></tr>`; }).join("")}
-      </tbody></table></div>
-      <h2 class="section-title">사용자</h2>
-      <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>이메일</th><th>신청 페이지</th><th>캘린더</th><th>상태</th><th></th></tr></thead><tbody>
-        ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.google_connected ? "연결됨" : "미연결"}</td><td><span class="pill ${u.active ? "on" : "off"}">${u.active ? "사용 중" : "정지"}</span></td>
-          <td>${u.id === state.me.id ? "" : `<button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "정지" : "다시 사용"}</button>`}</td></tr>`).join("")}
-      </tbody></table></div>
-      <h2 class="section-title">다가오는 전체 예약 (${upcoming.length}건)</h2>
-      ${upcoming.length ? `<div class="table-scroll"><table class="data"><thead><tr><th>일시</th><th>담당</th><th>학교</th><th>선생님</th><th>대상</th></tr></thead><tbody>
-        ${upcoming.map((b) => `<tr><td>${fmtRange(b.start_at, b.end_at)}</td><td>${esc(b.owner_name)}</td><td>${esc(b.school)}</td><td>${esc(b.contact_name)} ${esc(b.phone)}</td><td>${esc(b.target || "-")}</td></tr>`).join("")}
-      </tbody></table></div>` : `<div class="empty"><p class="hand">다가오는 예약이 없어요.</p></div>`}`;
-    pane.querySelector("#add-form").onsubmit = async (e) => {
-      e.preventDefault();
-      try { await API.addAllowed(pane.querySelector("#a-email").value, pane.querySelector("#a-role").value); toast("등록했어요."); paneAdmin(pane); }
-      catch (e2) { toast(e2.message); }
+  // ---------- 관리 (관리자만, 메뉴에 따로 노출) ----------
+  async function viewAdmin() {
+    if (!state.me) { location.hash = "#/login/admin"; return; }
+    if (state.me.role !== "admin") { location.hash = "#/app"; return; }
+    chrome(`<div class="wrap page"><div class="page-head"><div><h1>관리</h1><p>로그인할 수 있는 선생님 계정과 전체 예약을 관리합니다.</p></div></div><div id="admin" class="stack"><p class="muted">불러오는 중…</p></div></div>`);
+    const box = document.getElementById("admin");
+    const draw = async () => {
+      const [allowed, users, all] = await Promise.all([API.listAllowed(), API.listUsers(), API.listAllBookings()]);
+      const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
+      box.innerHTML = `
+        <div class="card"><div class="card-body">
+          <h2 class="section-title">사용 등록</h2><p class="hint-line">여기 등록한 구글 계정만 로그인해서 신청 페이지를 만들 수 있어요.</p>
+          <form id="add-form" class="row" style="align-items:end">
+            <div class="field" style="flex:1 1 240px"><label for="a-email">구글 계정 이메일</label><input id="a-email" type="email" required placeholder="name@gmail.com"></div>
+            <div class="field"><label for="a-role">권한</label><select id="a-role"><option value="user">선생님</option><option value="admin">관리자</option></select></div>
+            <button class="btn btn-primary" type="submit">등록</button>
+          </form>
+          <div class="table-scroll"><table class="data"><thead><tr><th>이메일</th><th>권한</th><th>가입</th><th></th></tr></thead><tbody>
+            ${allowed.map((a) => { const u = users.find((x) => (x.email || "").toLowerCase() === a.email); return `<tr><td>${esc(a.email)}</td><td><span class="badge">${a.role === "admin" ? "관리자" : "선생님"}</span></td><td>${u ? "가입함" : "아직"}</td><td><button class="btn btn-sm btn-danger" data-rm="${esc(a.email)}">등록 해제</button></td></tr>`; }).join("")}
+          </tbody></table></div>
+        </div></div>
+        <div class="card"><div class="card-body">
+          <h2 class="section-title">선생님</h2>
+          <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>이메일</th><th>신청 페이지</th><th>캘린더</th><th>상태</th><th></th></tr></thead><tbody>
+            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.google_connected ? "연결됨" : "미연결"}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
+              <td>${u.id === state.me.id ? "" : `<button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button>`}</td></tr>`).join("")}
+          </tbody></table></div>
+        </div></div>
+        <div class="card"><div class="card-body">
+          <h2 class="section-title">다가오는 전체 예약 ${upcoming.length}건</h2>
+          ${upcoming.length ? `<div class="table-scroll"><table class="data"><thead><tr><th>일시</th><th>방문 담당</th><th>학교</th><th>담당 선생님</th><th>대상</th></tr></thead><tbody>
+            ${upcoming.map((b) => `<tr><td>${fmtRange(b.start_at, b.end_at)}</td><td>${esc(b.owner_name)}</td><td>${esc(b.school)}</td><td>${esc(b.contact_name)} ${esc(b.phone)}</td><td>${esc(b.target || "-")}</td></tr>`).join("")}
+          </tbody></table></div>` : `<div class="empty-pane">다가오는 예약이 없어요.</div>`}
+        </div></div>`;
+      box.querySelector("#add-form").onsubmit = async (e) => {
+        e.preventDefault();
+        try { await API.addAllowed(box.querySelector("#a-email").value, box.querySelector("#a-role").value); toast("등록했어요."); draw(); }
+        catch (e2) { toast(e2.message); }
+      };
+      box.querySelectorAll("[data-rm]").forEach((b) => { b.onclick = async () => { try { await API.removeAllowed(b.dataset.rm); toast("등록을 해제했어요."); draw(); } catch (e) { toast(e.message); } }; });
+      box.querySelectorAll("[data-act]").forEach((b) => { b.onclick = async () => { try { await API.setUserActive(b.dataset.act, b.dataset.to === "1"); draw(); } catch (e) { toast(e.message); } }; });
     };
-    pane.querySelectorAll("[data-rm]").forEach((b) => { b.onclick = async () => { try { await API.removeAllowed(b.dataset.rm); toast("등록을 해제했어요."); paneAdmin(pane); } catch (e) { toast(e.message); } }; });
-    pane.querySelectorAll("[data-act]").forEach((b) => { b.onclick = async () => { try { await API.setUserActive(b.dataset.act, b.dataset.to === "1"); paneAdmin(pane); } catch (e) { toast(e.message); } }; });
+    try { await draw(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; }
   }
 
   // ---------- 신청자 페이지 ----------
   async function viewPublic(slug) {
-    loading();
+    chrome(`<div class="wrap page"><p class="muted">불러오는 중…</p></div>`, { publicView: true });
     let page;
     try { page = await API.publicPage(slug); } catch (e) { page = null; }
     if (!page) {
-      chrome(`<div class="wrap"><div class="center-card"><div class="sheet"><div class="sheet-head"></div><div class="sheet-body"><h1>신청 페이지를 찾지 못했어요</h1><p class="muted">주소가 바뀌었거나 닫힌 페이지예요. 링크를 보내 준 분께 다시 문의해 주세요.</p></div></div></div></div>`, { publicView: true });
+      simpleCard("신청 페이지를 찾지 못했어요", `<p class="muted">주소가 바뀌었거나 닫힌 페이지예요. 링크를 보내 준 선생님께 다시 문의해 주세요.</p>`, { publicView: true });
       return;
     }
     const unit = Number(page.slot_minutes) || 30;
-    const dur = Number(page.duration_minutes) || unit;
-    const need = Math.max(1, Math.round(dur / unit));
-    const first = addDays(dayStart(new Date()), 1);
-    const last = addDays(dayStart(new Date()), Number(page.days_ahead) || 28);
-    const weeks = Math.max(1, Math.ceil((last - first) / (7 * 86400000)));
     const rows = rowsFor(page);
-    let pick = null; // 선택한 시작 시각
+    const first = addDays(dayStart(new Date()), 1); // 내일부터
+    const last = addDays(dayStart(new Date()), Number(page.days_ahead) || 28); // 이 날까지 포함
+    const firstMonth = monthStart(first), lastMonth = monthStart(last);
+    if (!state.pubMonth || state.pubMonth < firstMonth || state.pubMonth > lastMonth) state.pubMonth = firstMonth;
     let avail = { open: [], blocked: [] };
+    let day = null; // 고른 날짜
+    let sel = null; // { s, e }
 
-    chrome(`<div class="wrap sheet-page">
-      <p class="file-name">${esc(page.slug)}_홍보신청.xlsx</p>
-      <div class="sheet"><div class="sheet-head"></div><div class="sheet-body">
-        <div class="title-block"><span class="tag">신청 즉시 확정</span><h1>${esc(page.page_title || "홍보 방문 신청")}</h1>${page.page_intro ? `<p>${esc(page.page_intro)}</p>` : ""}</div>
-        <div class="grid-tools">
-          <div class="week-nav"><button class="btn btn-sm" id="pw-prev" aria-label="이전 주">◀</button><strong id="pw-label"></strong><button class="btn btn-sm" id="pw-next" aria-label="다음 주">▶</button></div>
-          <div class="legend"><span><i class="sw-open"></i>선택 가능</span><span><i class="sw-pick"></i>내가 고른 시간</span><span><i class="sw-off"></i>선택 불가</span></div>
-        </div>
-        <div id="pgrid"><p class="muted">시간표를 불러오는 중…</p></div>
-        <p class="grid-note">칸을 누르면 그 시각부터 ${dur}분 동안 방문합니다. 방문 담당: ${esc(page.name)}</p>
-        <div id="picked"></div>
-        <form id="apply" class="form-grid" hidden>
-          <div class="field"><label for="p-school">학교명 <span class="req">*</span></label><input id="p-school" required autocomplete="organization"></div>
-          <div class="field"><label for="p-name">담당 선생님 성함 <span class="req">*</span></label><input id="p-name" required autocomplete="name"></div>
-          <div class="field"><label for="p-phone">연락처 <span class="req">*</span></label><input id="p-phone" required inputmode="tel" autocomplete="tel" placeholder="010-0000-0000"></div>
-          <div class="field"><label for="p-target">대상 (학년·인원)</label><input id="p-target" placeholder="예: 3학년 120명"></div>
-          <div class="field full"><label for="p-place">장소</label><input id="p-place" placeholder="${esc(page.default_place || "예: 강당, 시청각실")}"></div>
-          <div class="field full"><label for="p-req">요청사항</label><textarea id="p-req" placeholder="준비물, 주차, 출입 안내 등"></textarea></div>
-          <p class="error full" id="p-err" hidden></p>
-          <div class="form-actions full"><button class="btn btn-cta" type="submit" id="p-submit">이 시간으로 신청하기</button></div>
-        </form>
-      </div></div></div>`, { publicView: true });
+    chrome(`
+      <section class="pub-band"><img class="mark" src="${ASSET.emblemWhite}" alt="">
+        <div class="wrap"><img class="logo" src="${ASSET.logoWhite}" alt="${SCHOOL}">
+          <h1>${esc(page.page_title || "고교 방문 홍보 신청")}</h1>${page.page_intro ? `<p>${esc(page.page_intro)}</p>` : ""}</div></section>
+      <div class="wrap pub-main">
+        <div class="card"><div class="card-body">
+          <div class="list-head"><h2 class="section-title">1. 날짜와 시간 고르기</h2><span class="badge">${unit}분 단위 · 신청 즉시 확정</span></div>
+          <div class="cal-wrap"><div id="pcal"></div><div class="slots-panel" id="ppanel"></div></div>
+        </div></div>
+        <div class="card" id="form-card" hidden><div class="card-body">
+          <h2 class="section-title">2. 신청 정보 입력</h2>
+          <div id="picked"></div>
+          <form id="apply" class="form-grid">
+            <div class="field"><label for="p-school">학교명 <span class="req">*</span></label><input id="p-school" required autocomplete="organization" placeholder="예: 인천○○고등학교"></div>
+            <div class="field"><label for="p-name">담당 선생님 성함 <span class="req">*</span></label><input id="p-name" required autocomplete="name"></div>
+            <div class="field"><label for="p-phone">연락처 <span class="req">*</span></label><input id="p-phone" required inputmode="tel" autocomplete="tel" placeholder="010-0000-0000"></div>
+            <div class="field"><label for="p-target">대상 (학년·인원)</label><input id="p-target" placeholder="예: 3학년 120명"></div>
+            <div class="field full"><label for="p-place">장소</label><input id="p-place" placeholder="${esc(page.default_place || "예: 강당, 시청각실")}"></div>
+            <div class="field full"><label for="p-req">요청사항</label><textarea id="p-req" placeholder="준비물, 주차, 출입 안내 등"></textarea></div>
+            <p class="error full" id="p-err" hidden></p>
+            <div class="form-actions full"><button class="btn btn-primary btn-lg" type="submit" id="p-submit">이 시간으로 신청하기</button></div>
+          </form>
+        </div></div>
+      </div>`, { publicView: true });
 
-    const $grid = document.getElementById("pgrid");
+    const $cal = document.getElementById("pcal");
+    const $panel = document.getElementById("ppanel");
+    const $formCard = document.getElementById("form-card");
     const $picked = document.getElementById("picked");
-    const $form = document.getElementById("apply");
 
-    const canStart = (s) => {
-      if (T.ms(s) <= Date.now() || s < first) return false;
-      const e = addMin(s, dur);
-      if (T.ms(e) > T.ms(atTime(s, page.day_end || "18:00"))) return false;
+    const cellOk = (s) => {
+      if (T.ms(s) <= Date.now() || s < first || s >= addDays(last, 1)) return false;
+      const e = addMin(s, unit);
       if (!T.covered(avail.open, s, e)) return false;
       return !avail.blocked.some((b) => T.overlaps(b.start_at, b.end_at, s, e));
     };
+    const dayCount = (d) => rows.reduce((n, r) => n + (cellOk(atTime(d, r)) ? 1 : 0), 0);
 
-    const showPicked = () => {
-      if (!pick) { $picked.innerHTML = ""; $form.hidden = true; return; }
-      $picked.innerHTML = `<div class="picked-box"><div><span class="small muted">고른 시간</span><br><strong>${fmtRange(pick, addMin(pick, dur))}</strong></div><button type="button" class="btn btn-sm" id="unpick">다시 고르기</button></div>`;
-      document.getElementById("unpick").onclick = () => { pick = null; drawGrid(); showPicked(); };
-      $form.hidden = false;
+    const drawPicked = () => {
+      if (!sel) { $formCard.hidden = true; return; }
+      $formCard.hidden = false;
+      $picked.innerHTML = `<div class="picked"><div><span class="lbl">고른 시간</span><strong>${fmtRange(sel.s, sel.e)}</strong><span class="small muted">${fmtLen((sel.e - sel.s) / 60000)}</span></div><button type="button" class="btn btn-sm" id="unpick">다시 고르기</button></div>`;
+      document.getElementById("unpick").onclick = () => { sel = null; drawPanel(); drawPicked(); };
     };
 
-    let days = [];
-    const drawGrid = () => {
-      $grid.innerHTML = gridTable(days, rows, (d, r) => {
-        const s = atTime(d, r);
-        const inPick = pick && T.ms(s) >= T.ms(pick) && T.ms(s) < T.ms(addMin(pick, dur));
-        const ok = canStart(s);
-        const isStart = pick && T.ms(s) === T.ms(pick);
-        const label = isStart ? fmtTime(s) : "";
-        return `<button type="button" class="slot ${inPick ? "pick" : ""} ${isStart ? "pick-start" : ""}" data-s="${s.toISOString()}" ${ok || inPick ? "" : "disabled"} aria-label="${fmtDay(d)} ${r} ${ok ? "선택 가능" : "선택 불가"}" ${isStart ? 'aria-pressed="true"' : ""}>${label}</button>`;
-      });
-      $grid.querySelectorAll(".slot:not([disabled])").forEach((b) => {
+    const drawPanel = () => {
+      if (!day) {
+        $panel.innerHTML = `<div class="empty-pane">달력에서 파란색 날짜를 골라 주세요.</div>`;
+        return;
+      }
+      $panel.innerHTML = `<div class="list-head"><h3>${fmtDay(day)}</h3></div>
+        <p class="hint-line">시작 시간을 누르고, 끝나는 칸을 한 번 더 누르면 그만큼 이어서 선택돼요. 회색 칸은 고를 수 없어요.</p>
+        <div class="chips">${rows.map((r) => {
+          const s = atTime(day, r);
+          const ok = cellOk(s);
+          const on = sel && T.ms(s) >= T.ms(sel.s) && T.ms(s) < T.ms(sel.e);
+          return `<button type="button" class="chip ${on ? "on" : ""}" data-s="${s.toISOString()}" ${ok ? "" : "disabled"} aria-pressed="${on}" aria-label="${r} ${ok ? "선택 가능" : "선택 불가"}">${r}<small>~${fmtTime(addMin(s, unit))}</small></button>`;
+        }).join("")}</div>
+        <div class="legend"><span><i class="lg-closed"></i>선택 가능</span><span><i class="lg-pick"></i>고른 시간</span><span><i class="lg-off"></i>선택 불가</span></div>`;
+      $panel.querySelectorAll(".chip:not([disabled])").forEach((b) => {
         b.onclick = () => {
           const s = new Date(b.dataset.s);
-          if (!canStart(s)) return;
-          pick = s; drawGrid(); showPicked();
-          document.getElementById("picked").scrollIntoView({ behavior: "smooth", block: "nearest" });
+          if (sel && T.ms(s) >= T.ms(sel.e)) {
+            // 이어 붙이기: 사이 칸이 모두 가능하고 최대 시간 이내일 때만
+            let okAll = true;
+            for (let t = new Date(sel.e); t <= s; t = addMin(t, unit)) if (!cellOk(t)) { okAll = false; break; }
+            const len = (T.ms(s) + unit * 60000 - T.ms(sel.s)) / 60000;
+            if (okAll && len <= MAX_BOOK_MIN) sel = { s: sel.s, e: addMin(s, unit) };
+            else { sel = { s, e: addMin(s, unit) }; if (okAll) toast(`한 번에 ${fmtLen(MAX_BOOK_MIN)}까지 신청할 수 있어요.`); }
+          } else if (sel && T.ms(s) >= T.ms(sel.s) && T.ms(s) < T.ms(sel.e) && (sel.e - sel.s) > unit * 60000) {
+            sel = { s: sel.s, e: addMin(s, unit) }; // 고른 범위 안을 누르면 거기까지 줄이기
+          } else {
+            sel = { s, e: addMin(s, unit) };
+          }
+          drawPanel(); drawPicked();
         };
       });
     };
 
-    const loadWeek = async () => {
-      const from = addDays(first, state.pubWeek * 7);
-      const to = addDays(from, 7);
-      days = Array.from({ length: 7 }, (_, i) => addDays(from, i)).filter((d) => d <= last);
-      document.getElementById("pw-label").textContent = `${fmtDay(from)} ~ ${fmtDay(days[days.length - 1])}`;
-      document.getElementById("pw-prev").disabled = state.pubWeek <= 0;
-      document.getElementById("pw-next").disabled = state.pubWeek >= weeks - 1;
-      $grid.innerHTML = `<p class="muted">시간표를 불러오는 중…</p>`;
-      try {
-        avail = await API.availability(slug, from.toISOString(), to.toISOString());
-        drawGrid();
-        const any = $grid.querySelector(".slot:not([disabled])");
-        if (!any) $grid.insertAdjacentHTML("beforeend", `<p class="grid-note" style="padding:8px">이 주에는 신청 가능한 시간이 없어요. 다음 주를 확인해 주세요.</p>`);
-      } catch (e) {
-        $grid.innerHTML = `<p class="error">${esc(e.message)}</p>`;
-      }
+    const drawCal = () => {
+      const m = state.pubMonth;
+      $cal.innerHTML = calHead(m, "pm", m > firstMonth, m < lastMonth) + monthCal(m, (d) => {
+        const n = dayCount(d);
+        return { disabled: n === 0, cls: n ? "avail" : "", sub: n ? "가능" : "", aria: n ? "신청 가능" : "신청 불가" };
+      }, day);
+      $cal.querySelector("#pm-prev").onclick = () => { state.pubMonth = addMonths(m, -1); loadMonth(); };
+      $cal.querySelector("#pm-next").onclick = () => { state.pubMonth = addMonths(m, 1); loadMonth(); };
+      $cal.querySelectorAll(".day[data-day]:not([disabled])").forEach((b) => {
+        b.onclick = () => { day = new Date(b.dataset.day); sel = null; drawCal(); drawPanel(); drawPicked(); };
+      });
     };
-    document.getElementById("pw-prev").onclick = () => { state.pubWeek = Math.max(0, state.pubWeek - 1); loadWeek(); };
-    document.getElementById("pw-next").onclick = () => { state.pubWeek = Math.min(weeks - 1, state.pubWeek + 1); loadWeek(); };
-    state.pubWeek = 0;
-    await loadWeek();
 
-    $form.onsubmit = async (e) => {
+    async function loadMonth() {
+      const m = state.pubMonth;
+      const from = new Date(Math.max(T.ms(m), T.ms(first)));
+      const to = new Date(Math.min(T.ms(addMonths(m, 1)), T.ms(addDays(last, 1))));
+      $cal.innerHTML = `<p class="muted">달력을 불러오는 중…</p>`;
+      day = null; sel = null; drawPanel(); drawPicked();
+      try {
+        avail = to > from ? await API.availability(slug, from.toISOString(), to.toISOString()) : { open: [], blocked: [] };
+      } catch (e) {
+        $cal.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+        return;
+      }
+      // 이 달에서 처음 가능한 날을 미리 골라 둡니다.
+      for (let d = new Date(from); d < to; d = addDays(d, 1)) if (dayCount(d)) { day = dayStart(d); break; }
+      drawCal(); drawPanel();
+      if (!day) $panel.innerHTML = `<div class="empty-pane">이 달에는 신청 가능한 시간이 없어요.${m < lastMonth ? " 다음 달을 확인해 주세요." : ""}</div>`;
+    }
+    await loadMonth();
+
+    document.getElementById("apply").onsubmit = async (e) => {
       e.preventDefault();
       const err = document.getElementById("p-err");
       const btn = document.getElementById("p-submit");
@@ -618,49 +737,43 @@
       const v = (id) => document.getElementById(id).value.trim();
       const fields = { school: v("p-school"), contact_name: v("p-name"), phone: v("p-phone"), target: v("p-target"), place: v("p-place") || page.default_place || "", request: v("p-req") };
       if (!/^[0-9+\-\s()]{8,20}$/.test(fields.phone)) { err.textContent = "연락처를 숫자로 입력해 주세요. 예: 010-1234-5678"; err.hidden = false; return; }
+      if (!sel) { err.textContent = "시간을 먼저 골라 주세요."; err.hidden = false; return; }
       btn.disabled = true; btn.textContent = "신청하는 중…";
       try {
-        const r = await API.book(slug, pick.toISOString(), fields);
+        const r = await API.book(slug, sel.s.toISOString(), sel.e.toISOString(), fields);
         state.lastBooking = r;
         try { sessionStorage.setItem("promo-last-booking", JSON.stringify(r)); } catch (e2) { /* 메모리에만 */ }
         location.hash = "#/done";
       } catch (e2) {
         err.textContent = e2.message; err.hidden = false;
         btn.disabled = false; btn.textContent = "이 시간으로 신청하기";
-        pick = null; showPicked(); loadWeek();
+        await loadMonth();
       }
     };
   }
 
   // ---------- 신청 완료 ----------
-  function phoneSvg() {
-    // 손으로 그린 듯한 휴대폰 테두리
-    return `<svg class="frame" viewBox="0 0 330 600" aria-hidden="true">
-      <path d="M44 14 C120 8 220 10 292 16 C314 18 320 30 320 52 L318 552 C318 576 306 588 284 588 L48 590 C24 590 12 578 12 556 L14 48 C14 26 24 16 44 14 Z" fill="#4fa36d" stroke="#1f2421" stroke-width="5" stroke-linejoin="round"/>
-      <path d="M40 80 L292 78 L290 488 L42 490 Z" fill="#fbf9f2" stroke="#1f2421" stroke-width="4" stroke-linejoin="round"/>
-      <path d="M140 46 C156 44 176 44 190 46" fill="none" stroke="#1f2421" stroke-width="5" stroke-linecap="round"/>
-      <circle cx="120" cy="46" r="5" fill="#1f2421"/>
-      <path d="M150 520 C168 516 182 518 186 530 C190 546 184 560 166 562 C148 564 138 552 140 538 C141 528 144 522 150 520 Z" fill="#fbf9f2" stroke="#1f2421" stroke-width="4"/>
-    </svg>`;
-  }
-
   function viewDone() {
     let r = state.lastBooking;
     if (!r) { try { r = JSON.parse(sessionStorage.getItem("promo-last-booking") || "null"); } catch (e) { r = null; } }
     if (!r) { location.hash = "#/"; return; }
     const { booking: b, page } = r;
     const text = confirmMessage(page, b);
-    chrome(`<div class="wrap sheet-page"><p class="file-name">신청완료.xlsx</p><div class="sheet"><div class="sheet-head"></div><div class="sheet-body">
+    chrome(`<div class="wrap page"><div class="card"><div class="card-body">
       <div class="done">
-        <div class="stack">
-          <span class="tag">확정</span>
-          <h1>신청이 완료됐어요</h1>
-          <p class="hand">${fmtRange(b.start_at, b.end_at)}<br>${esc(b.school)}에서 만나요!</p>
-          <p class="muted">오른쪽 안내문자를 복사해 두시거나 카톡으로 보내 두세요. 일정 변경은 ${esc(page.name)} (${esc(page.contact_phone || "-")})에게 연락해 주세요.</p>
-          <div class="done-actions"><button class="btn" id="d-copy">안내문자 복사</button><button class="btn btn-yellow" id="d-share">카톡으로 보내기</button></div>
+        <div class="stack" style="justify-items:start">
+          <span class="check" aria-hidden="true">✓</span>
+          <h1>신청이 확정됐어요</h1>
+          <p class="when">${fmtRange(b.start_at, b.end_at)}</p>
+          <p class="muted">${esc(b.school)} · ${esc(b.target || "대상 미입력")} · ${esc(b.place || page.default_place || "장소 미입력")}</p>
+          <p class="muted small">아래 안내문자를 복사해 두시거나 카카오톡으로 보내 두세요. 일정 변경은 ${esc(page.name)} 선생님(${esc(page.contact_phone || "-")})께 연락해 주세요.</p>
+          <div class="done-actions"><button class="btn" id="d-copy">안내문자 복사</button><button class="btn btn-kakao" id="d-share">카카오톡으로 보내기</button></div>
           <a class="small" href="#/r/${esc(page.slug)}">다른 시간 하나 더 신청하기</a>
         </div>
-        <div class="phone">${phoneSvg()}<div class="screen"><span class="chat-head">홍보 일정 안내</span><div class="bubble">${esc(text)}</div></div></div>
+        <div class="phone" aria-label="안내문자 미리보기"><div class="screen">
+          <div class="bar"><img src="${ASSET.emblem}" alt="">${SCHOOL}</div>
+          <div class="chat"><span class="from">${SCHOOL}</span><div class="bubble">${esc(text)}</div></div>
+        </div></div>
       </div></div></div></div>`, { publicView: true });
     document.getElementById("d-copy").onclick = () => copyText(text, "안내문자를 복사했어요.");
     document.getElementById("d-share").onclick = () => shareText(text, page.page_title);
@@ -669,11 +782,15 @@
   // ---------- 라우터 ----------
   async function route() {
     closeModal();
-    const h = location.hash.replace(/^#\/?/, "");
-    const [a, b] = h.split("/");
+    window.onpointerup = null;
+    const [a, b] = location.hash.replace(/^#\/?/, "").split("/");
     if (a === "r" && b) return viewPublic(decodeURIComponent(b));
     if (a === "done") return viewDone();
-    if (a === "login") return state.me ? (location.hash = "#/app") : viewLogin();
+    if (a === "login") {
+      if (state.me) { location.hash = b === "admin" ? "#/admin" : "#/app"; return; }
+      return viewLogin(b === "admin");
+    }
+    if (a === "admin") return viewAdmin();
     if (a === "app") {
       if (!state.me && !API.demo && API.sessionEmail && (await API.sessionEmail())) return viewNotRegistered();
       return viewApp(b);
@@ -685,10 +802,7 @@
     try { state.me = await API.init(); } catch (e) { state.me = null; }
     API.onAuthChange((me) => { state.me = me; if (me && /^#?\/?(login)?$/.test(location.hash)) location.hash = "#/app"; else route(); });
     window.addEventListener("hashchange", route);
-    // 구글 로그인에서 돌아온 직후에는 내 시트로 보냅니다.
-    if (state.me && (!location.hash || location.hash === "#/" || location.hash === "#/login")) {
-      if (new URLSearchParams(location.search).has("code")) history.replaceState(null, "", location.pathname + "#/app");
-    }
+    if (state.me && new URLSearchParams(location.search).has("code")) history.replaceState(null, "", location.pathname + "#/app");
     route();
   }
   boot();
