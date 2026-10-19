@@ -43,7 +43,7 @@
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v1";
+    const KEY = "promo-booking-demo-v2";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
