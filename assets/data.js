@@ -302,6 +302,16 @@
         });
       },
       async signIn() {
+        // 구글 로그인이 Supabase에서 아직 꺼져 있으면, 오류 페이지로 넘어가는 대신 여기서 알려 줍니다.
+        try {
+          const r = await fetch(`${CFG.SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: CFG.SUPABASE_ANON_KEY } });
+          const st = await r.json();
+          if (st && st.external && st.external.google === false) {
+            throw new Error("구글 로그인이 아직 설정되지 않았어요. 관리자에게 설정을 요청해 주세요.");
+          }
+        } catch (e) {
+          if (e.message.startsWith("구글 로그인이")) throw e;
+        }
         const { error } = await sb.auth.signInWithOAuth({
           provider: "google",
           options: {
