@@ -139,12 +139,12 @@
   function chrome(inner, opts = {}) {
     const me = state.me;
     const demoBar = API.demo
-      ? `<div class="demo-bar"><div class="wrap"><span>체험 모드예요. 데이터는 이 브라우저에만 저장되고 구글 캘린더 일정은 예시입니다.</span><button type="button" id="demo-reset">예시 데이터로 되돌리기</button></div></div>`
+      ? `<div class="demo-bar"><div class="wrap"><span>체험 모드예요. 데이터는 이 브라우저에만 저장됩니다.</span><button type="button" id="demo-reset">예시 데이터로 되돌리기</button></div></div>`
       : "";
     const right = opts.publicView
       ? ""
       : me
-        ? `<span class="who">${esc(me.name || me.email)} 선생님</span>
+        ? `<span class="who">${esc(me.name || me.login_id)} 선생님</span>
            ${me.role === "admin" ? `<a class="btn btn-sm btn-ghost" href="#/admin">관리</a>` : ""}
            <a class="btn btn-sm" href="#/app">내 페이지</a>
            <button class="btn btn-sm btn-ghost" id="logout">로그아웃</button>`
@@ -170,44 +170,69 @@
         <div class="wrap">
           <span class="eyebrow">${SCHOOL} · 고교 방문 홍보</span>
           <h1>고교 방문 홍보 일정, 링크 하나로 받으세요</h1>
-          <p>선생님이 열어 둔 시간 안에서 고등학교 담당 선생님이 직접 날짜와 시간을 고릅니다. 구글 캘린더 일정과 겹치는 시간은 자동으로 막히고, 확정되면 안내문자가 바로 만들어져요.</p>
+          <p>선생님이 열어 둔 시간 안에서 고등학교 담당 선생님이 직접 날짜와 시간을 고릅니다. 이미 예약된 시간은 자동으로 막히고, 확정되면 안내문자가 바로 만들어져요.</p>
           <div class="hero-actions">
             <a class="btn btn-white btn-lg" href="${state.me ? "#/app" : "#/login"}">${state.me ? "내 페이지 열기" : "시작하기"}</a>
             ${API.demo ? `<a class="btn btn-outline-white btn-lg" href="#/r/kim">신청 화면 미리보기</a>` : ""}
           </div>
-          <ul class="checks"><li>구글 캘린더 일정 자동 반영</li><li>30분 단위 신청</li><li>안내문자 복사·카카오톡 공유</li></ul>
+          <ul class="checks"><li>예약 겹침 자동 방지</li><li>30분 단위 신청</li><li>안내문자 복사·카카오톡 공유</li></ul>
         </div>
       </section>
       <section class="steps"><div class="wrap"><div class="steps-grid">
-        <div class="step"><span class="num">1</span><h3>방문 가능한 시간 열기</h3><p>달력에서 날짜를 골라 방문할 수 있는 시간만 엽니다. 구글 캘린더에 일정이 있는 시간은 열리지 않아요.</p></div>
+        <div class="step"><span class="num">1</span><h3>방문 가능한 시간 열기</h3><p>달력에서 날짜를 골라 방문할 수 있는 시간만 엽니다. 열어 둔 시간에만 신청이 들어와요.</p></div>
         <div class="step"><span class="num">2</span><h3>링크·QR 보내기</h3><p>내 신청 페이지 링크와 QR을 안내문자와 함께 고등학교에 보냅니다.</p></div>
         <div class="step"><span class="num">3</span><h3>확정 안내 보내기</h3><p>담당 선생님이 시간을 고르면 바로 확정되고, 안내문자를 복사하거나 카카오톡으로 보냅니다.</p></div>
       </div></div></section>`);
   }
 
   // ---------- 로그인 ----------
-  const GOOGLE_ICON = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
-  function viewLogin(asAdmin) {
-    const body = API.demo
-      ? `<p class="muted">체험 모드에서는 구글 로그인 대신 아래 버튼으로 들어갑니다.</p>
-         <button class="btn btn-primary" id="demo-in">${asAdmin ? "관리자로 체험하기" : "체험하기"}</button>`
-      : `<p class="muted">등록된 구글 계정으로 로그인해 주세요. 캘린더는 '바쁜 시간'만 읽어서 겹치는 시간을 막는 데 씁니다. 일정 제목이나 내용은 읽지 않아요.</p>
-         <button class="btn google-btn" id="google">${GOOGLE_ICON} Google로 로그인</button>`;
-    simpleCard("로그인", `${body}<p class="error" id="login-err" hidden></p>`);
+  async function viewLogin(asAdmin) {
+    const next = () => { location.hash = state.me && state.me.role === "admin" && asAdmin ? "#/admin" : "#/app"; };
+    let setup = null;
+    if (!API.demo) { try { setup = await API.setupStatus(); } catch (e) { setup = null; } }
+    if (setup && setup.needs_setup) {
+      simpleCard("처음 관리자 계정 만들기", `<p class="muted">아직 관리자 계정이 없어요. 관리자로 쓸 아이디와 비밀번호를 정해 주세요. 이 화면은 처음 한 번만 나와요.</p>
+        <form id="setup-form" class="stack">
+          <div class="field"><label for="s-name">이름</label><input id="s-name" required autocomplete="name"></div>
+          <div class="field"><label for="s-id">아이디</label><input id="s-id" required autocomplete="username" autocapitalize="none" placeholder="영어 소문자·숫자 3~20자"></div>
+          <div class="field"><label for="s-pw">비밀번호</label><input id="s-pw" type="password" required minlength="6" autocomplete="new-password" placeholder="6자 이상"></div>
+          <p class="error" id="login-err" hidden></p>
+          <button class="btn btn-primary" type="submit">관리자 계정 만들기</button>
+        </form>`);
+      const err = document.getElementById("login-err");
+      document.getElementById("setup-form").onsubmit = async (e) => {
+        e.preventDefault(); err.hidden = true;
+        const v = (id) => document.getElementById(id).value;
+        try {
+          state.me = await API.setupAdmin({ name: v("s-name").trim(), login_id: v("s-id").trim().toLowerCase(), password: v("s-pw") });
+          location.hash = "#/admin";
+        } catch (e2) { err.textContent = e2.message; err.hidden = false; }
+      };
+      return;
+    }
+    simpleCard("로그인", `
+      ${API.demo ? `<p class="muted">체험용 계정: 선생님 <b>kim</b> / <b>1234</b>, 관리자 <b>admin</b> / <b>1234</b></p>` : `<p class="muted">관리자에게 받은 아이디와 비밀번호를 입력해 주세요.</p>`}
+      <form id="login-form" class="stack">
+        <div class="field"><label for="l-id">아이디</label><input id="l-id" required autocomplete="username" autocapitalize="none" value="${API.demo ? (asAdmin ? "admin" : "kim") : ""}"></div>
+        <div class="field"><label for="l-pw">비밀번호</label><input id="l-pw" type="password" required autocomplete="current-password" value="${API.demo ? "1234" : ""}"></div>
+        <p class="error" id="login-err" hidden></p>
+        <button class="btn btn-primary" type="submit">로그인</button>
+      </form>
+      <p class="small muted">비밀번호를 잊었으면 관리자에게 초기화를 요청해 주세요.</p>`);
     const err = document.getElementById("login-err");
-    const go = async () => {
+    document.getElementById("login-form").onsubmit = async (e) => {
+      e.preventDefault(); err.hidden = true;
       try {
-        state.me = await API.signIn(asAdmin ? "admin" : "user");
-        if (state.me) location.hash = asAdmin ? "#/admin" : "#/app";
-      } catch (e) { err.textContent = e.message; err.hidden = false; }
+        state.me = await API.signIn(document.getElementById("l-id").value, document.getElementById("l-pw").value);
+        if (state.me) next();
+        else { err.textContent = "사용할 수 없는 계정이에요. 관리자에게 문의해 주세요."; err.hidden = false; await API.signOut(); }
+      } catch (e2) { err.textContent = e2.message; err.hidden = false; }
     };
-    (document.getElementById("demo-in") || document.getElementById("google")).onclick = go;
   }
 
   async function viewNotRegistered() {
-    const email = API.sessionEmail ? await API.sessionEmail() : "";
-    simpleCard("아직 사용 등록이 안 된 계정이에요",
-      `<p class="muted">${esc(email)} 계정은 아직 등록되지 않았어요. 홍보 담당 부서에 이 이메일 등록을 요청한 뒤 다시 로그인해 주세요.</p>
+    simpleCard("사용할 수 없는 계정이에요",
+      `<p class="muted">관리자가 만든 계정으로 로그인해 주세요.</p>
        <div class="row"><button class="btn" id="out">다른 계정으로 로그인</button></div>`);
     document.getElementById("out").onclick = async () => { await API.signOut(); location.hash = "#/login"; };
   }
@@ -279,10 +304,10 @@
         <div class="row"><button class="btn btn-sm btn-soft" id="open-month">이번 달 평일 모두 열기</button><button class="btn btn-sm" id="close-month">이번 달 모두 닫기</button></div></div>
       <div class="cal-wrap">
         <div><div id="cal"></div>
-          <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--busy-ink);border:0"></i>구글 일정</span></div></div>
+          <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span></div></div>
         <div class="slots-panel" id="panel"></div>
       </div>
-      <p class="hint-line">${p.google_connected ? "구글 캘린더 연결됨 · 바쁜 시간만 읽어 와요." : "구글 캘린더가 아직 연결되지 않았어요. 로그아웃 후 다시 로그인하면서 캘린더 접근을 허용해 주세요."} 시간 칸은 ${unit}분 단위예요.</p>`;
+      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요.</p>`;
 
     const $cal = pane.querySelector("#cal");
     const $panel = pane.querySelector("#panel");
@@ -300,7 +325,7 @@
       $cal.querySelectorAll(".day[data-day]").forEach((b) => { b.onclick = () => { state.day = new Date(b.dataset.day); drawCal(); drawPanel(); }; });
     };
 
-    const label = { open: "열림", closed: "닫힘", busy: "구글 일정", "busy-open": "구글 일정", booked: "", past: "" };
+    const label = { open: "열림", closed: "닫힘", busy: "다른 일정", "busy-open": "다른 일정", booked: "", past: "" };
     const drawPanel = () => {
       const d = state.day;
       const past = d < today;
@@ -312,7 +337,7 @@
           const sub = c.kind === "booked" ? esc(c.label) : label[c.kind];
           return `<button type="button" class="chip st-${c.kind}" data-r="${r}" ${dis ? "disabled" : ""} aria-label="${r} ${sub || "지난 시간"}">${r}${sub ? `<small>${sub}</small>` : ""}</button>`;
         }).join("")}</div>
-        <div class="legend"><span><i class="lg-open"></i>열림</span><span><i class="lg-closed"></i>닫힘</span><span><i class="lg-busy"></i>구글 일정</span><span><i class="lg-booked"></i>예약됨</span></div>`;
+        <div class="legend"><span><i class="lg-open"></i>열림</span><span><i class="lg-closed"></i>닫힘</span><span><i class="lg-booked"></i>예약됨</span></div>`;
       const $chips = $panel.querySelector("#chips");
       let paint = null;
       const apply = (el) => {
@@ -483,7 +508,7 @@
   }
 
   // 페이지 설정 (탭으로 분류)
-  const SET_TABS = [["basic", "기본 정보"], ["time", "신청 시간"], ["message", "안내문자"], ["address", "신청 주소"]];
+  const SET_TABS = [["basic", "기본 정보"], ["time", "신청 시간"], ["message", "안내문자"], ["address", "신청 주소"], ["account", "내 계정"]];
   function paneSettings(pane) {
     const p = state.me;
     const opt = (vals, cur, fmt) => vals.map((v) => `<option value="${v}" ${String(v) === String(cur) ? "selected" : ""}>${fmt(v)}</option>`).join("");
@@ -516,12 +541,28 @@
             <span class="hint">영어 소문자, 숫자, - 만 쓸 수 있어요 (3~30자). 바꾸면 예전에 보낸 링크와 QR은 열리지 않아요.</span></div>
           <p class="small muted">현재 주소: ${esc(pageUrl(p.slug))}</p>
         </section>
+        <section data-sec="account" class="stack">
+          <p class="muted">아이디: <b>${esc(p.login_id || "")}</b></p>
+          <div class="field"><label for="f-pw">새 비밀번호</label><input id="f-pw" type="password" minlength="6" autocomplete="new-password" placeholder="6자 이상"></div>
+          <div class="field"><label for="f-pw2">새 비밀번호 확인</label><input id="f-pw2" type="password" autocomplete="new-password"></div>
+          <div class="form-actions"><button class="btn btn-primary" type="button" id="pw-save">비밀번호 바꾸기</button></div>
+        </section>
         <p class="error" id="set-err" hidden></p>
-        <div class="form-actions"><button class="btn btn-primary" type="submit">저장</button></div>
+        <div class="form-actions" id="set-save"><button class="btn btn-primary" type="submit">저장</button></div>
       </form>`;
     const show = () => {
       pane.querySelectorAll("[data-sec]").forEach((s) => { s.hidden = s.dataset.sec !== state.settingsTab; });
       pane.querySelectorAll("[data-st]").forEach((b) => b.setAttribute("aria-selected", b.dataset.st === state.settingsTab));
+      pane.querySelector("#set-save").hidden = state.settingsTab === "account";
+    };
+    pane.querySelector("#pw-save").onclick = async () => {
+      const err = pane.querySelector("#set-err");
+      err.hidden = true;
+      const a = pane.querySelector("#f-pw").value, b = pane.querySelector("#f-pw2").value;
+      if (a.length < 6) { err.textContent = "비밀번호는 6자 이상이어야 해요."; err.hidden = false; return; }
+      if (a !== b) { err.textContent = "두 비밀번호가 서로 달라요."; err.hidden = false; return; }
+      try { await API.changePassword(a); pane.querySelector("#f-pw").value = pane.querySelector("#f-pw2").value = ""; toast("비밀번호를 바꿨어요."); }
+      catch (e) { err.textContent = e.message; err.hidden = false; }
     };
     pane.querySelectorAll("[data-st]").forEach((b) => { b.onclick = () => { state.settingsTab = b.dataset.st; show(); }; });
     show();
@@ -555,31 +596,45 @@
   }
 
   // ---------- 관리 (관리자만, 메뉴에 따로 노출) ----------
+  // 헷갈리는 글자(0/o, 1/l)를 뺀 임시 비밀번호
+  function tempPw() {
+    const cs = "abcdefghjkmnpqrstuvwxyz23456789";
+    const buf = new Uint32Array(8);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (n) => cs[n % cs.length]).join("");
+  }
+  function showLoginInfo(name, loginId, pw, title) {
+    const text = `[${SCHOOL} 홍보 예약] ${name} 선생님 로그인 정보\n주소: ${location.origin}${location.pathname}#/login\n아이디: ${loginId}\n비밀번호: ${pw}\n로그인 후 '페이지 설정 → 내 계정'에서 비밀번호를 바꿔 주세요.`;
+    openModal(`<div class="card-body"><h2 class="section-title">${title}</h2>
+      <p class="muted">아래 내용을 선생님께 보내 주세요. 이 창을 닫으면 비밀번호는 다시 볼 수 없어요.</p>
+      <pre class="msg-preview" style="white-space:pre-wrap;margin:0">${esc(text)}</pre>
+      <div class="form-actions"><button class="btn" data-close>닫기</button><button class="btn btn-primary" id="li-copy">복사</button></div></div>`);
+    document.getElementById("li-copy").onclick = () => copyText(text, "로그인 정보를 복사했어요.");
+  }
   async function viewAdmin() {
     if (!state.me) { location.hash = "#/login/admin"; return; }
     if (state.me.role !== "admin") { location.hash = "#/app"; return; }
-    chrome(`<div class="wrap page"><div class="page-head"><div><h1>관리</h1><p>로그인할 수 있는 선생님 계정과 전체 예약을 관리합니다.</p></div></div><div id="admin" class="stack"><p class="muted">불러오는 중…</p></div></div>`);
+    chrome(`<div class="wrap page"><div class="page-head"><div><h1>관리</h1><p>선생님 계정과 전체 예약을 관리합니다.</p></div></div><div id="admin" class="stack"><p class="muted">불러오는 중…</p></div></div>`);
     const box = document.getElementById("admin");
     const draw = async () => {
-      const [allowed, users, all] = await Promise.all([API.listAllowed(), API.listUsers(), API.listAllBookings()]);
+      const [users, all] = await Promise.all([API.listUsers(), API.listAllBookings()]);
       const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
       box.innerHTML = `
         <div class="card"><div class="card-body">
-          <h2 class="section-title">사용 등록</h2><p class="hint-line">여기 등록한 구글 계정만 로그인해서 신청 페이지를 만들 수 있어요.</p>
-          <form id="add-form" class="row" style="align-items:end">
-            <div class="field" style="flex:1 1 240px"><label for="a-email">구글 계정 이메일</label><input id="a-email" type="email" required placeholder="name@gmail.com"></div>
+          <h2 class="section-title">선생님 계정 만들기</h2><p class="hint-line">만든 아이디와 비밀번호를 선생님께 알려 주세요. 선생님은 로그인 후 '페이지 설정 → 내 계정'에서 비밀번호를 바꿀 수 있어요.</p>
+          <form id="add-form" class="form-grid">
+            <div class="field"><label for="a-name">이름</label><input id="a-name" required placeholder="홍길동"></div>
+            <div class="field"><label for="a-id">아이디</label><input id="a-id" required autocapitalize="none" placeholder="영어 소문자·숫자 3~20자"></div>
+            <div class="field"><label for="a-pw">처음 비밀번호</label><input id="a-pw" required minlength="6" value="${tempPw()}"></div>
             <div class="field"><label for="a-role">권한</label><select id="a-role"><option value="user">선생님</option><option value="admin">관리자</option></select></div>
-            <button class="btn btn-primary" type="submit">등록</button>
+            <div class="form-actions full"><button class="btn btn-primary" type="submit">계정 만들기</button></div>
           </form>
-          <div class="table-scroll"><table class="data"><thead><tr><th>이메일</th><th>권한</th><th>가입</th><th></th></tr></thead><tbody>
-            ${allowed.map((a) => { const u = users.find((x) => (x.email || "").toLowerCase() === a.email); return `<tr><td>${esc(a.email)}</td><td><span class="badge">${a.role === "admin" ? "관리자" : "선생님"}</span></td><td>${u ? "가입함" : "아직"}</td><td><button class="btn btn-sm btn-danger" data-rm="${esc(a.email)}">등록 해제</button></td></tr>`; }).join("")}
-          </tbody></table></div>
         </div></div>
         <div class="card"><div class="card-body">
-          <h2 class="section-title">선생님</h2>
-          <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>이메일</th><th>신청 페이지</th><th>캘린더</th><th>상태</th><th></th></tr></thead><tbody>
-            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.google_connected ? "연결됨" : "미연결"}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
-              <td>${u.id === state.me.id ? "" : `<button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button>`}</td></tr>`).join("")}
+          <h2 class="section-title">선생님 ${users.length}명</h2>
+          <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>아이디</th><th>신청 페이지</th><th>권한</th><th>상태</th><th></th></tr></thead><tbody>
+            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.login_id || "")}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.role === "admin" ? "관리자" : "선생님"}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
+              <td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm" data-reset="${u.id}">비밀번호 초기화</button>${u.id === state.me.id ? "" : `<button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button><button class="btn btn-sm btn-danger" data-del="${u.id}">삭제</button>`}</div></td></tr>`).join("")}
           </tbody></table></div>
         </div></div>
         <div class="card"><div class="card-body">
@@ -590,10 +645,32 @@
         </div></div>`;
       box.querySelector("#add-form").onsubmit = async (e) => {
         e.preventDefault();
-        try { await API.addAllowed(box.querySelector("#a-email").value, box.querySelector("#a-role").value); toast("등록했어요."); draw(); }
+        const f = { name: box.querySelector("#a-name").value.trim(), login_id: box.querySelector("#a-id").value.trim().toLowerCase(), password: box.querySelector("#a-pw").value, role: box.querySelector("#a-role").value };
+        try { await API.createUser(f); await draw(); showLoginInfo(f.name, f.login_id, f.password, "계정을 만들었어요"); }
         catch (e2) { toast(e2.message); }
       };
-      box.querySelectorAll("[data-rm]").forEach((b) => { b.onclick = async () => { try { await API.removeAllowed(b.dataset.rm); toast("등록을 해제했어요."); draw(); } catch (e) { toast(e.message); } }; });
+      const userOf = (id) => users.find((x) => x.id === id) || {};
+      box.querySelectorAll("[data-reset]").forEach((b) => { b.onclick = () => {
+        const u = userOf(b.dataset.reset);
+        openModal(`<div class="card-body"><h2 class="section-title">${esc(u.name)} 선생님 비밀번호 초기화</h2>
+          <div class="field"><label for="r-pw">새 비밀번호</label><input id="r-pw" minlength="6" value="${tempPw()}"></div>
+          <p class="error" id="r-err" hidden></p>
+          <div class="form-actions"><button class="btn" data-close>취소</button><button class="btn btn-primary" id="r-go">초기화</button></div></div>`);
+        document.getElementById("r-go").onclick = async () => {
+          const pw = document.getElementById("r-pw").value;
+          try { await API.resetPassword(u.id, pw); showLoginInfo(u.name, u.login_id, pw, "비밀번호를 초기화했어요"); }
+          catch (e) { const er = document.getElementById("r-err"); er.textContent = e.message; er.hidden = false; }
+        };
+      }; });
+      box.querySelectorAll("[data-del]").forEach((b) => { b.onclick = () => {
+        const u = userOf(b.dataset.del);
+        openModal(`<div class="card-body"><h2 class="section-title">${esc(u.name)} 선생님 계정 삭제</h2>
+          <p class="muted">이 선생님의 신청 페이지, 열린 시간, 예약 기록이 모두 지워지고 되돌릴 수 없어요. 잠시 쉬게 하려면 '사용 멈춤'을 써 주세요.</p>
+          <div class="form-actions"><button class="btn" data-close>취소</button><button class="btn btn-danger" id="d-go">삭제</button></div></div>`);
+        document.getElementById("d-go").onclick = async () => {
+          try { await API.deleteUser(u.id); closeModal(); toast("계정을 삭제했어요."); draw(); } catch (e) { toast(e.message); }
+        };
+      }; });
       box.querySelectorAll("[data-act]").forEach((b) => { b.onclick = async () => { try { await API.setUserActive(b.dataset.act, b.dataset.to === "1"); draw(); } catch (e) { toast(e.message); } }; });
     };
     try { await draw(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; }

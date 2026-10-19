@@ -167,3 +167,27 @@ create policy "update own bookings or admin" on public.bookings
 
 -- 첫 관리자 등록: 아래 이메일을 본인 구글 계정으로 바꿔 실행하세요.
 -- insert into public.allowed_emails (email, role) values ('your.name@gmail.com', 'admin');
+
+-- ---------- v3.0: 아이디·비밀번호 로그인 ----------
+-- 계정은 admin-api 서버 함수가 만들고 profiles 행도 함께 넣습니다. (allowed_emails, google_tokens는 더 이상 쓰지 않음)
+alter table public.profiles add column if not exists login_id text unique check (login_id ~ '^[a-z0-9._-]{3,20}$');
+
+create or replace function public.ensure_profile()
+returns public.profiles language sql stable security definer set search_path = '' as $$
+  select * from public.profiles where id = auth.uid();
+$$;
+
+create or replace function public.profiles_guard()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if current_user = 'authenticated' and not public.is_admin() then
+    new.role := old.role;
+    new.active := old.active;
+    new.email := old.email;
+    new.login_id := old.login_id;
+    new.google_connected := old.google_connected;
+  end if;
+  new.id := old.id;
+  return new;
+end;
+$$;

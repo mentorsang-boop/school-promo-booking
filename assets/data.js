@@ -37,13 +37,15 @@
     "slug", "name", "page_title", "page_intro", "contact_phone", "default_place",
     "slot_minutes", "duration_minutes", "days_ahead", "day_start", "day_end", "confirm_template", "active",
   ];
+  // 아이디는 서버에 `{아이디}@isg-promo.local` 형태로 저장됩니다 (메일은 보내지 않음).
+  const ID_DOMAIN = "isg-promo.local";
   const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
 
   // =====================================================================
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v2";
+    const KEY = "promo-booking-demo-v3";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
@@ -66,16 +68,16 @@
       const base = (id, extra) => ({
         id, active: true, slot_minutes: 30, duration_minutes: 60, days_ahead: 28,
         day_start: "09:00", day_end: "18:00", invite_template: DEFAULT_INVITE, confirm_template: DEFAULT_CONFIRM,
-        google_connected: true, ...extra,
+        password: "1234", ...extra,
       });
       const profiles = [
         base("u-admin", {
-          email: "admin@example.com", name: "미카", role: "admin", slug: "mika",
+          login_id: "admin", email: "admin@isg-promo.local", name: "미카", role: "admin", slug: "mika",
           page_title: "인천산업정보학교 고교 방문 홍보 신청", page_intro: "원하시는 날짜와 시간을 골라 주세요.\n방문 홍보는 약 1시간 진행됩니다.",
           contact_phone: "010-1234-5678", default_place: "",
         }),
         base("u-kim", {
-          email: "kim@example.com", name: "김홍보", role: "user", slug: "kim",
+          login_id: "kim", email: "kim@isg-promo.local", name: "김홍보", role: "user", slug: "kim",
           page_title: "인천산업정보학교 고교 방문 홍보 신청",
           page_intro: "위탁 교육과정과 학과 소개를 위해 고등학교로 직접 찾아갑니다.\n편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.",
           contact_phone: "010-2345-6789", default_place: "학교 시청각실",
@@ -88,14 +90,6 @@
           open.push({ user_id: uid, start_at: at(off, "10:00"), end_at: at(off, "12:00") });
           open.push({ user_id: uid, start_at: at(off, "13:30"), end_at: at(off, "17:00") });
         }
-      }
-      // 구글 캘린더 '바쁨' 예시
-      const busy = [];
-      for (let off = 1; off <= 45; off++) {
-        if (isWeekend(off)) continue;
-        if (off % 3 === 1) busy.push({ user_id: "u-kim", start_at: at(off, "10:30"), end_at: at(off, "11:30") });
-        if (off % 4 === 2) busy.push({ user_id: "u-kim", start_at: at(off, "15:00"), end_at: at(off, "16:30") });
-        if (off % 2 === 0) busy.push({ user_id: "u-admin", start_at: at(off, "14:00"), end_at: at(off, "15:00") });
       }
       let firstWeekday = 2;
       while (isWeekend(firstWeekday)) firstWeekday++;
@@ -113,12 +107,7 @@
           place: "진로상담실", request: "", status: "confirmed", created_at: new Date().toISOString(),
         },
       ];
-      const allowed = [
-        { email: "admin@example.com", role: "admin" },
-        { email: "kim@example.com", role: "user" },
-        { email: "choi@example.com", role: "user" },
-      ];
-      return { profiles, open, busy, bookings, allowed };
+      return { profiles, open, bookings };
     }
 
     function load() {
@@ -153,9 +142,17 @@
       T, DEFAULT_INVITE, DEFAULT_CONFIRM,
       async init() { load(); return me(); },
       onAuthChange() {},
-      async signIn(role) {
-        setSession(role === "admin" ? "u-admin" : "u-kim");
+      async setupStatus() { return { needs_setup: false }; },
+      async signIn(loginId, password) {
+        const p = load().profiles.find((x) => x.login_id === String(loginId).trim().toLowerCase());
+        if (!p || p.password !== password) throw new Error("아이디 또는 비밀번호가 맞지 않아요.");
+        setSession(p.id);
         return me();
+      },
+      async changePassword(pw) {
+        const p = need();
+        if (String(pw).length < 6) throw new Error("비밀번호는 6자 이상이어야 해요.");
+        p.password = pw; save();
       },
       async signOut() { setSession(""); },
       async resetDemo() { mem = seed(); save(); },
@@ -181,10 +178,7 @@
         save();
         return true;
       },
-      async myBusy(from, to) {
-        const p = need();
-        return load().busy.filter((x) => x.user_id === p.id && inRange(x, from, to)).map((x) => pick(x, ["start_at", "end_at"]));
-      },
+      async myBusy() { return []; },
       async listBookings() {
         const p = need();
         return load().bookings.filter((b) => b.user_id === p.id).sort((a, b) => T.ms(a.start_at) - T.ms(b.start_at));
@@ -198,16 +192,41 @@
         return wait(b);
       },
       // 관리자
-      async listAllowed() { needAdmin(); return load().allowed.slice(); },
-      async addAllowed(email, role) {
+      async createUser({ login_id, name, password, role }) {
         needAdmin();
         const db = load();
-        email = email.trim().toLowerCase();
-        const ex = db.allowed.find((a) => a.email === email);
-        if (ex) ex.role = role; else db.allowed.push({ email, role });
+        login_id = String(login_id || "").trim().toLowerCase();
+        if (!/^[a-z0-9._-]{3,20}$/.test(login_id)) throw new Error("아이디는 영어 소문자, 숫자, . _ - 로 3~20자여야 해요.");
+        if (String(password).length < 6) throw new Error("비밀번호는 6자 이상이어야 해요.");
+        if (!String(name || "").trim()) throw new Error("이름을 입력해 주세요.");
+        if (db.profiles.some((p) => p.login_id === login_id)) throw new Error("이미 있는 아이디예요.");
+        let slug = login_id.replace(/[^a-z0-9-]/g, "-");
+        if (slug.length < 3 || db.profiles.some((p) => p.slug === slug)) slug = (slug + "-" + Math.random().toString(36).slice(2, 6)).slice(0, 30);
+        const tpl = db.profiles[0];
+        db.profiles.push({
+          id: "u-" + Math.random().toString(36).slice(2, 9), login_id, email: login_id + "@isg-promo.local", name: name.trim(),
+          role: role === "admin" ? "admin" : "user", active: true, slug, password,
+          slot_minutes: 30, duration_minutes: 60, days_ahead: 28, day_start: "09:00", day_end: "18:00",
+          page_title: tpl.page_title, page_intro: "편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.",
+          contact_phone: "", default_place: "", invite_template: DEFAULT_INVITE, confirm_template: DEFAULT_CONFIRM,
+        });
         save();
       },
-      async removeAllowed(email) { needAdmin(); const db = load(); db.allowed = db.allowed.filter((a) => a.email !== email); save(); },
+      async resetPassword(id, password) {
+        needAdmin();
+        const u = load().profiles.find((p) => p.id === id);
+        if (!u) throw new Error("계정을 찾지 못했어요.");
+        u.password = password; save();
+      },
+      async deleteUser(id) {
+        const a = needAdmin();
+        if (id === a.id) throw new Error("내 계정은 삭제할 수 없어요.");
+        const db = load();
+        db.profiles = db.profiles.filter((p) => p.id !== id);
+        db.open = db.open.filter((x) => x.user_id !== id);
+        db.bookings = db.bookings.filter((x) => x.user_id !== id);
+        save();
+      },
       async listUsers() { needAdmin(); return load().profiles.slice(); },
       async setUserActive(id, active) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.active = active; save(); } },
       async listAllBookings() {
@@ -227,10 +246,8 @@
         const p = db.profiles.find((x) => x.slug === slug && x.active);
         if (!p) throw new Error("신청 페이지를 찾지 못했어요.");
         const open = db.open.filter((x) => x.user_id === p.id && inRange(x, from, to)).map((x) => pick(x, ["start_at", "end_at"]));
-        const blocked = [
-          ...db.busy.filter((x) => x.user_id === p.id && inRange(x, from, to)),
-          ...db.bookings.filter((x) => x.user_id === p.id && x.status === "confirmed" && inRange(x, from, to)),
-        ].map((x) => pick(x, ["start_at", "end_at"]));
+        const blocked = db.bookings.filter((x) => x.user_id === p.id && x.status === "confirmed" && inRange(x, from, to))
+          .map((x) => pick(x, ["start_at", "end_at"]));
         return wait({ open, blocked });
       },
       async book(slug, start_at, end_at, fields) {
@@ -242,7 +259,7 @@
         if (T.ms(start_at) <= Date.now()) throw new Error("지난 시간은 신청할 수 없어요.");
         const open = db.open.filter((x) => x.user_id === p.id);
         if (!T.covered(open, start_at, end_at)) throw new Error("방금 그 시간이 닫혔어요. 다른 시간을 골라 주세요.");
-        const clash = [...db.busy.filter((x) => x.user_id === p.id), ...db.bookings.filter((x) => x.user_id === p.id && x.status === "confirmed")]
+        const clash = db.bookings.filter((x) => x.user_id === p.id && x.status === "confirmed")
           .some((x) => T.overlaps(x.start_at, x.end_at, start_at, end_at));
         if (clash) throw new Error("방금 다른 일정이 들어왔어요. 다른 시간을 골라 주세요.");
         const b = {
@@ -261,13 +278,13 @@
   // =====================================================================
   function supabaseApi() {
     const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" },
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
     });
     let current = null;
     const fail = (error) => { if (error) throw new Error(error.message || "요청을 처리하지 못했어요."); };
 
-    async function fn(body) {
-      const { data, error } = await sb.functions.invoke("public-api", { body });
+    async function fn(body, name = "public-api") {
+      const { data, error } = await sb.functions.invoke(name, { body });
       if (error) {
         let msg = error.message;
         try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) { /* 원문 유지 */ }
@@ -279,10 +296,6 @@
 
     async function loadProfile(session) {
       if (!session) { current = null; return null; }
-      // 구글 로그인 직후에만 갱신 토큰이 들어옵니다. 캘린더 조회용으로 서버에 보관합니다.
-      if (session.provider_refresh_token) {
-        await sb.rpc("save_google_token", { token: session.provider_refresh_token });
-      }
       const { data, error } = await sb.rpc("ensure_profile");
       fail(error);
       current = data && data.id ? data : null;
@@ -301,25 +314,18 @@
           if (event === "SIGNED_IN" || event === "SIGNED_OUT") setTimeout(async () => cb(await loadProfile(session)), 0);
         });
       },
-      async signIn() {
-        // 구글 로그인이 Supabase에서 아직 꺼져 있으면, 오류 페이지로 넘어가는 대신 여기서 알려 줍니다.
-        try {
-          const r = await fetch(`${CFG.SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: CFG.SUPABASE_ANON_KEY } });
-          const st = await r.json();
-          if (st && st.external && st.external.google === false) {
-            throw new Error("구글 로그인이 아직 설정되지 않았어요. 관리자에게 설정을 요청해 주세요.");
-          }
-        } catch (e) {
-          if (e.message.startsWith("구글 로그인이")) throw e;
-        }
-        const { error } = await sb.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: location.origin + location.pathname,
-            scopes: "https://www.googleapis.com/auth/calendar.freebusy",
-            queryParams: { access_type: "offline", prompt: "consent" },
-          },
-        });
+      async setupStatus() { return fn({ action: "status" }, "admin-api"); },
+      async setupAdmin(fields) { await fn({ action: "setup", ...fields }, "admin-api"); return this.signIn(fields.login_id, fields.password); },
+      async signIn(loginId, password) {
+        const id = String(loginId || "").trim().toLowerCase();
+        const { data, error } = await sb.auth.signInWithPassword({ email: `${id}@${ID_DOMAIN}`, password });
+        if (error) throw new Error(error.status === 400 ? "아이디 또는 비밀번호가 맞지 않아요." : "로그인하지 못했어요. 잠시 후 다시 시도해 주세요.");
+        return loadProfile(data.session);
+      },
+      async changePassword(pw) {
+        if (String(pw).length < 6) throw new Error("비밀번호는 6자 이상이어야 해요.");
+        const { error } = await sb.auth.updateUser({ password: pw });
+        if (error && /different/i.test(error.message)) throw new Error("지금 비밀번호와 다른 비밀번호를 정해 주세요.");
         fail(error);
       },
       async signOut() { await sb.auth.signOut(); current = null; },
@@ -348,10 +354,7 @@
         if (rows.length) fail((await sb.from("open_slots").insert(rows)).error);
         return true;
       },
-      async myBusy(from, to) {
-        const r = await fn({ action: "busy_self", from, to });
-        return r.busy || [];
-      },
+      async myBusy() { return []; },
       async listBookings() {
         const { data, error } = await sb.from("bookings").select("*").eq("user_id", current.id).order("start_at");
         fail(error);
@@ -362,19 +365,9 @@
         fail(error);
         return data;
       },
-      async listAllowed() {
-        const { data, error } = await sb.from("allowed_emails").select("*").order("created_at");
-        fail(error);
-        return data;
-      },
-      async addAllowed(email, role) {
-        const { error } = await sb.from("allowed_emails").upsert({ email: email.trim().toLowerCase(), role });
-        fail(error);
-      },
-      async removeAllowed(email) {
-        const { error } = await sb.from("allowed_emails").delete().eq("email", email);
-        fail(error);
-      },
+      async createUser(fields) { await fn({ action: "create_user", ...fields }, "admin-api"); },
+      async resetPassword(user_id, password) { await fn({ action: "reset_password", user_id, password }, "admin-api"); },
+      async deleteUser(user_id) { await fn({ action: "delete_user", user_id }, "admin-api"); },
       async listUsers() {
         const { data, error } = await sb.from("profiles").select("*").order("created_at");
         fail(error);
