@@ -56,7 +56,7 @@
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v3.3";
+    const KEY = "promo-booking-demo-v3.4";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
@@ -229,6 +229,7 @@
       },
       // 관리자
       async signUp(fields) {
+        if (String(fields.code || "") !== (load().signup_code || "123456")) throw new Error("가입 코드가 맞지 않아요. 관리자에게 코드를 확인해 주세요.");
         await this.createUser({ ...fields, role: "user" }, true);
         return this.signIn(fields.login_id, fields.password);
       },
@@ -268,6 +269,9 @@
         save();
       },
       async listUsers() { needAdmin(); return load().profiles.slice(); },
+      async getSignupCode() { needAdmin(); return load().signup_code || "123456"; },
+      async setSignupCode(code) { needAdmin(); load().signup_code = code; save(); },
+      async setUserRole(id, role) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.role = role; save(); } },
       async setUserActive(id, active) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.active = active; save(); } },
       async listAllBookings() {
         needAdmin();
@@ -418,6 +422,17 @@
         const { data, error } = await sb.from("profiles").select("*").order("created_at");
         fail(error);
         return data;
+      },
+      async getSignupCode() {
+        const { data, error } = await sb.from("app_settings").select("value").eq("key", "signup_code").maybeSingle();
+        fail(error);
+        return data ? data.value : "";
+      },
+      async setSignupCode(code) {
+        fail((await sb.from("app_settings").upsert({ key: "signup_code", value: code, updated_at: new Date().toISOString() })).error);
+      },
+      async setUserRole(id, role) {
+        fail((await sb.from("profiles").update({ role }).eq("id", id)).error);
       },
       async setUserActive(id, active) {
         const { error } = await sb.from("profiles").update({ active }).eq("id", id);

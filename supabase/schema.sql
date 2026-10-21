@@ -215,3 +215,17 @@ create policy "active users read visit schools" on public.visit_schools
   for select to authenticated using ((select public.is_active_user()));
 create policy "admin manages visit schools" on public.visit_schools
   for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+
+-- ---------- v3.4: 가입 코드 (관리자만 읽고 바꿈, admin-api가 가입 때 확인) ----------
+create table if not exists public.app_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_settings enable row level security;
+create policy "admin manages settings" on public.app_settings
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+insert into public.app_settings (key, value)
+values ('signup_code', lpad((floor(random() * 1000000))::int::text, 6, '0'))
+on conflict (key) do nothing;
+alter table public.profiles add column if not exists pending boolean not null default false; -- 쓰지 않음

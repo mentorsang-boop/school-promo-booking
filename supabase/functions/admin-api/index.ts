@@ -1,7 +1,7 @@
 // 아이디·비밀번호 계정 관리 서버 함수.
 // - status: 관리자 계정이 아직 없는지 (처음 설정 화면용)
 // - setup: 관리자 계정이 하나도 없을 때만 첫 관리자 만들기
-// - signup: 선생님이 직접 가입
+// - signup: 선생님이 가입 코드를 넣고 직접 가입 (코드는 관리 화면에서 확인·변경)
 // - create_user / reset_password / delete_user: 관리자만
 // 아이디는 내부적으로 `{아이디}@isg-promo.local` 이메일로 저장합니다 (메일은 보내지 않음).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -77,8 +77,10 @@ Deno.serve(async (req) => {
     return r.error ? fail(r.error) : json({ ok: true });
   }
 
-  // 선생님이 직접 가입 (관리자가 '사용 멈춤'이나 삭제로 정리)
+  // 선생님이 가입 코드를 넣고 직접 가입
   if (action === "signup") {
+    const { data: setting } = await db.from("app_settings").select("value").eq("key", "signup_code").maybeSingle();
+    if (!setting?.value || clean(body.code, 40) !== setting.value) return fail("가입 코드가 맞지 않아요. 관리자에게 코드를 확인해 주세요.", 403);
     const r = await createAccount(loginId, password, name, "user");
     return r.error ? fail(r.error) : json({ ok: true });
   }
