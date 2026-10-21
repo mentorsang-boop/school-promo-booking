@@ -427,3 +427,20 @@ table.data tr:last-child td { border-bottom: 0; }
 .mg-main { flex: 1; min-width: 0; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 4px; }
 .mg-memo { font-size: var(--step--1); color: var(--ink-2); background: var(--bg); border-radius: 8px; padding: 6px 8px; }
 .cat-chip { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--c); border-radius: 999px; padding: 2px 8px; }
+
+/* v3.7: 학교 자료 한 화면 */
+.lib-filters { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 12px; }
+.lib-filters input, .lib-filters select { font: inherit; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); min-width: 0; }
+@media (max-width: 420px) { .lib-filters { grid-template-columns: 1fr; } }
+.sc-map { margin-bottom: 4px; }
+
+/* v3.7: 열린 시간의 신청 기간 */
+.period-card { border: 1px solid var(--line); background: var(--brand-50); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px; }
+.period-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.period-inputs { display: flex; align-items: center; gap: 8px; }
+.period-inputs input { font: inherit; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); }
+.period-card .hint-line { margin: 0; }
+.day.outside:not(.selected) { opacity: .42; }
+.lg-out { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--brand-50); border: 1px dashed var(--line-strong); margin-right: 5px; vertical-align: middle; opacity: .6; }
+.period-inputs { flex: 1; min-width: 0; }
+.period-inputs input { flex: 1; min-width: 0; width: 100%; }

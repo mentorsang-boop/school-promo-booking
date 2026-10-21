@@ -103,8 +103,29 @@
     { title: "설명회·학부모 안내", when: "교내 설명회나 학부모 대상 안내",
       text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n학생·학부모 대상 위탁교육 설명회(학과 소개, 입교 절차, 졸업 후 진로)를 진행해 드리고 있습니다.\n대상과 인원을 적어 신청해 주시면 맞춰서 준비하겠습니다.\n\n신청: {링크}\n문의: {사용자} {연락처}" },
     { title: "답이 없을 때 다시", when: "한 번 보냈는데 답이 없을 때",
-      text: "선생님 안녕하세요, 인천산업정보학교 {사용자}입니다.\n지난번 안내드린 홍보 방문 건으로 다시 연락드립니다. 바쁘신 시기라 짧게 10~20분도 가능합니다.\n편하실 때 아래에서 시간만 골라 주세요.\n{링크}\n감사합니다." },
+      text: "선생님 안녕하세요, 인천산업정보학교 {사용자}입니다.\n지난번 안내드린 홍보 방문 건으로 다시 연락드립니다. 바쁜 시기라 짧게 10~20분도 가능합니다.\n편하실 때 아래에서 시간만 골라 주세요.\n{링크}\n감사합니다." },
+    { title: "위탁교육 희망 학생이 있는 학교", when: "진로진학 담당 선생님께",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n위탁교육에 관심 있는 학생이 있다고 들어 연락드립니다. 학과별 교육과정, 입교 절차, 졸업 후 진로를 학생과 담당 선생님께 직접 안내해 드리겠습니다.\n\n방문 가능한 날짜를 골라 주세요.\n{링크}\n\n문의: {사용자} {연락처}\n감사합니다." },
+    { title: "실습·체험 강조", when: "학과 체험을 보여 주고 싶을 때",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n저희 학교는 학과별 실습 중심 교육으로 학생들이 직접 만들고 체험해 볼 수 있습니다. 학교로 찾아가 실습 영상과 체험 활동을 함께 진행해 드립니다.\n\n편하신 날짜와 시간을 선택해 주세요.\n{링크}\n\n감사합니다." },
+    { title: "2학년 부장·담임 선생님께", when: "학급 단위 진로 시간 제안",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n2학년 학급별 진로 시간에 위탁교육 과정을 소개해 드리고자 합니다. 학급 단위로도, 희망 학생만 모아서도 가능합니다.\n\n가능하신 시간을 골라 주세요.\n{링크}\n\n문의: {연락처}\n감사합니다." },
+    { title: "바쁜 시기라 짧게", when: "10~20분 짧은 안내 제안",
+      text: "선생님 안녕하세요, 인천산업정보학교 {사용자}입니다.\n학사 일정이 바쁘신 시기인 줄 알아, 10~20분 짧은 안내도 가능하도록 준비했습니다.\n편하신 시간만 골라 주세요.\n{링크}\n감사합니다." },
+    { title: "전화 드린 뒤 문자", when: "통화 후 링크를 보낼 때",
+      text: "안녕하세요, 방금 통화드린 인천산업정보학교 {사용자}입니다.\n말씀드린 홍보 방문 일정은 아래 링크에서 편하신 시간으로 직접 선택해 주시면 바로 확정됩니다.\n{링크}\n통화로 부족한 점은 {연락처}로 편하게 연락 주세요.\n감사합니다." },
+    { title: "교장·교감 선생님께", when: "정중하게 요청할 때",
+      text: "안녕하십니까, 인천산업정보학교 {사용자}입니다.\n귀교 학생들의 진로 선택에 도움이 되고자 위탁교육 과정 홍보 방문을 요청드립니다. 바쁘신 중에도 일정을 확인해 주시면 감사하겠습니다.\n\n방문 일정 선택: {링크}\n문의: {사용자} {연락처}\n\n감사합니다." },
+    { title: "담당 선생님이 바뀌었을 때", when: "새로 업무를 맡으신 선생님께",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n올해 새로 진로·위탁 업무를 맡으셨다고 들었습니다. 지난해에도 학생 진로 안내로 인연이 있어 인사드립니다.\n\n방문 안내가 필요하시면 편하신 시간을 골라 주세요.\n{링크}\n\n문의: {연락처}\n감사합니다." },
+    { title: "시험이 끝난 뒤", when: "시험 후 진로 고민 시기",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n시험이 끝나고 진로를 고민하는 시기에 맞춰, 학생들에게 위탁교육 과정을 소개해 드리고자 연락드립니다.\n\n학교 일정에 맞춰 날짜를 골라 주세요.\n{링크}\n\n감사합니다." },
+    { title: "진로 행사·학부모 총회와 함께", when: "행사 일정에 맞출 때",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n학부모 총회·진로 행사에 맞춰 위탁교육 안내 부스나 짧은 설명 시간을 운영해 드릴 수 있습니다.\n행사 일정에 맞춰 신청해 주세요.\n{링크}\n\n문의: {사용자} {연락처}\n감사합니다." },
+    { title: "편하게 (아는 선생님)", when: "격식 없이 친근하게",
+      text: "선생님~ 인천산업정보학교 {사용자}예요 :)\n올해도 학교 홍보 다니는 시기가 왔네요. 시간 되실 때 아래에서 편한 날로 골라 주세요!\n{링크}\n늘 감사합니다." },
   ];
+  const RECS_PER = 3;
 
   function openModal(html) {
     $modal.innerHTML = `<div class="modal-back"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
@@ -279,11 +300,12 @@
   }
 
   // ---------- 내 페이지 ----------
-  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["schools", "방문 학교"], ["library", "학교 자료"], ["manage", "학교 관리"], ["share", "공유"], ["settings", "페이지 설정"]];
+  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["schools", "방문 학교"], ["library", "학교 자료"], ["share", "공유"], ["settings", "페이지 설정"]];
 
   async function viewApp(tab) {
     if (!state.me) { location.hash = "#/login"; return; }
     if (!state.me.active) { simpleCard("사용이 멈춘 계정이에요", `<p class="muted">홍보 담당 부서에 문의해 주세요.</p>`); return; }
+    if (tab === "manage") tab = "library"; // 예전 주소
     const cur = TABS.some(([k]) => k === tab) ? tab : "open";
     chrome(`<div class="wrap page">
       <div class="page-head"><div><h1>${esc(state.me.name)} 선생님의 홍보 예약</h1></div></div>
@@ -297,7 +319,6 @@
       else if (cur === "bookings") await paneBookings(pane);
       else if (cur === "schools") await paneSchools(pane);
       else if (cur === "library") await paneLibrary(pane);
-      else if (cur === "manage") await paneManage(pane);
       else if (cur === "share") paneShare(pane);
       else paneSettings(pane);
     } catch (e) {
@@ -343,15 +364,32 @@
       return { openMin, bk, bz };
     };
 
+    const todayD = dayStart(new Date());
+    const period = () => {
+      const q = state.me;
+      return { from: q.book_from || ymdLocal(addDays(todayD, 1)), until: q.book_until || ymdLocal(addDays(todayD, Number(q.days_ahead) || 28)) };
+    };
+    const periodHint = () => {
+      const pr = period(), q = state.me;
+      const f = fromYmd(pr.from), u = fromYmd(pr.until);
+      const days = Math.round((u - f) / 86400000) + 1;
+      return `${fmtDay(f)} ~ ${fmtDay(u)} (${days}일) 사이 날짜만 신청받아요.${q.book_from && q.book_until ? "" : " 비워 둔 칸은 자동으로 정해져요 (첫날은 내일, 마지막 날은 오늘부터 " + (Number(q.days_ahead) || 28) + "일 뒤)."}`;
+    };
     pane.innerHTML = `
+      <div class="period-card">
+        <div class="period-top"><b>신청 받는 기간</b>
+          <div class="period-inputs"><input id="pr-from" type="date" aria-label="신청 받는 첫날" value="${esc(p.book_from || "")}"><span>~</span><input id="pr-until" type="date" aria-label="신청 받는 마지막 날" value="${esc(p.book_until || "")}"></div></div>
+        <div class="row period-quick"><button type="button" class="btn btn-sm btn-soft" data-pq="14">앞으로 2주</button><button type="button" class="btn btn-sm btn-soft" data-pq="28">앞으로 4주</button><button type="button" class="btn btn-sm btn-soft" data-pq="month">이번 달 끝까지</button><button type="button" class="btn btn-sm" data-pq="reset">비우기</button></div>
+        <p class="hint-line" id="pr-hint">${periodHint()}</p>
+      </div>
       <div class="list-head"><div><h2 class="section-title">열린 시간</h2><p class="hint-line">날짜를 고른 뒤, 방문할 수 있는 시간을 눌러 열어 주세요. 다시 누르면 닫힙니다.</p></div>
         <div class="row"><button class="btn btn-sm btn-primary" id="timetable">수업시간표로 한 번에 열기</button><button class="btn btn-sm btn-soft" id="open-month">이번 달 평일 모두 열기</button><button class="btn btn-sm" id="close-month">이번 달 모두 닫기</button></div></div>
       <div class="cal-wrap">
         <div><div id="cal"></div>
-          <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span></div></div>
+          <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span><span><i class="lg-out"></i>신청 기간 밖</span></div></div>
         <div class="slots-panel" id="panel"></div>
       </div>
-      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요.</p>`;
+      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요. 흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</p>`;
 
     const $cal = pane.querySelector("#cal");
     const $panel = pane.querySelector("#panel");
@@ -362,7 +400,8 @@
         const past = d < today;
         const s = daySummary(d);
         const dots = (s.openMin ? `<i class="dot open"></i>` : "") + `<i class="dot"></i>`.repeat(Math.min(s.bk, 3)) + (s.bz ? `<i class="dot busy"></i>` : "");
-        return { disabled: past, sub: s.openMin ? fmtLen(s.openMin) : "", dots, cls: s.openMin ? "avail" : "" };
+        const pr = period(), ymd = ymdLocal(d), out = ymd < pr.from || ymd > pr.until;
+        return { disabled: past, sub: s.openMin ? fmtLen(s.openMin) : "", dots, cls: `${s.openMin ? "avail" : ""} ${out ? "outside" : ""}` };
       }, state.day);
       $cal.querySelector("#om-prev").onclick = () => { state.month = addMonths(m0, -1); state.day = null; paneOpen(pane); };
       $cal.querySelector("#om-next").onclick = () => { state.month = addMonths(m0, 1); state.day = null; paneOpen(pane); };
@@ -436,6 +475,30 @@
       }, 500);
     }
 
+    // 신청 기간: 날짜를 고르는 즉시 저장 (페이지 설정에서 옮겨 옴)
+    const $from = pane.querySelector("#pr-from"), $until = pane.querySelector("#pr-until");
+    const savePeriod = async (from, until, msg) => {
+      if (from && until && from > until) { toast("마지막 날이 첫날보다 빠를 수 없어요."); $from.value = state.me.book_from || ""; $until.value = state.me.book_until || ""; return; }
+      try {
+        state.me = await API.updateProfile({ book_from: from || null, book_until: until || null });
+        $from.value = state.me.book_from || ""; $until.value = state.me.book_until || "";
+        pane.querySelector("#pr-hint").textContent = periodHint();
+        drawCal();
+        toast(msg || "신청 기간을 저장했어요.");
+      } catch (e) { toast(e.message); }
+    };
+    $from.onchange = () => savePeriod($from.value, $until.value);
+    $until.onchange = () => savePeriod($from.value, $until.value);
+    pane.querySelectorAll("[data-pq]").forEach((b) => { b.onclick = () => {
+      const k = b.dataset.pq, tomorrow = addDays(todayD, 1);
+      if (k === "reset") return savePeriod("", "", "신청 기간을 비웠어요.");
+      let end;
+      if (k === "month") {
+        end = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 0);
+        if (end < tomorrow) end = new Date(todayD.getFullYear(), todayD.getMonth() + 2, 0);
+      } else end = addDays(todayD, Number(k));
+      savePeriod(ymdLocal(tomorrow), ymdLocal(end));
+    }; });
     pane.querySelector("#timetable").onclick = () => openTimetable(() => paneOpen(pane));
     pane.querySelector("#open-month").onclick = () => {
       for (let d = new Date(m0); d < m1; d = addDays(d, 1)) if (!isWeekend(d)) setDay(d, true);
@@ -608,15 +671,26 @@
           <div class="row"><button class="btn" id="copy-invite">안내문자 복사</button><button class="btn btn-kakao" id="share-invite">카카오톡으로 보내기</button></div>
         </div>
       </div>
-      <div class="rec-head"><h2 class="section-title">추천 안내문자</h2><p class="hint-line">상황에 맞는 글을 골라 바로 보내거나, '내 안내문자로 쓰기'를 눌러 위 기본 문구로 바꿀 수 있어요.</p></div>
-      <div class="rec-list">${RECOMMENDED_INVITES.map((r, i) => `<div class="rec-card"><div class="rec-title"><b>${esc(r.title)}</b><span class="muted small">${esc(r.when)}</span></div>
+      <div class="rec-head"><div class="list-head"><div><h2 class="section-title">추천 안내문자</h2><p class="hint-line">상황에 맞는 글을 골라 바로 보내거나, '내 안내문자로 쓰기'를 눌러 위 기본 문구로 바꿀 수 있어요.</p></div>
+        <button type="button" class="btn btn-sm btn-soft" id="rec-next">↻ 다른 예시 보기</button></div></div>
+      <p class="muted small" id="rec-pos"></p>
+      <div class="rec-list" id="rec-list"></div>`;
+    const drawRecs = () => {
+      const n = RECOMMENDED_INVITES.length;
+      const start = (state.recStart || 0) % n;
+      const idx = Array.from({ length: RECS_PER }, (_, k) => (start + k) % n);
+      pane.querySelector("#rec-pos").textContent = `예시 ${n}개 중 ${idx.map((i) => i + 1).join("·")}번을 보고 있어요. '다른 예시 보기'를 누르면 다음 예시가 나와요.`;
+      pane.querySelector("#rec-list").innerHTML = idx.map((i) => { const r = RECOMMENDED_INVITES[i]; return `<div class="rec-card"><div class="rec-title"><b>${esc(r.title)}</b><span class="muted small">${esc(r.when)}</span></div>
         <pre class="msg-preview">${esc(fillInvite(r.text, p))}</pre>
-        <div class="row"><button class="btn btn-sm" data-rec-copy="${i}">복사</button><button class="btn btn-sm btn-kakao" data-rec-share="${i}">카카오톡</button><button class="btn btn-sm btn-soft" data-rec-use="${i}">내 안내문자로 쓰기</button></div></div>`).join("")}</div>`;
-    pane.querySelectorAll("[data-rec-copy]").forEach((b) => { b.onclick = () => copyText(fillInvite(RECOMMENDED_INVITES[b.dataset.recCopy].text, p), "안내문자를 복사했어요."); });
-    pane.querySelectorAll("[data-rec-share]").forEach((b) => { b.onclick = () => shareText(fillInvite(RECOMMENDED_INVITES[b.dataset.recShare].text, p), p.page_title); });
-    pane.querySelectorAll("[data-rec-use]").forEach((b) => { b.onclick = async () => {
-      try { state.me = await API.updateProfile({ invite_template: RECOMMENDED_INVITES[b.dataset.recUse].text }); toast("내 안내문자를 바꿨어요."); paneShare(pane); } catch (e) { toast(e.message); }
-    }; });
+        <div class="row"><button class="btn btn-sm" data-rec-copy="${i}">복사</button><button class="btn btn-sm btn-kakao" data-rec-share="${i}">카카오톡</button><button class="btn btn-sm btn-soft" data-rec-use="${i}">내 안내문자로 쓰기</button></div></div>`; }).join("");
+      pane.querySelectorAll("[data-rec-copy]").forEach((b) => { b.onclick = () => copyText(fillInvite(RECOMMENDED_INVITES[b.dataset.recCopy].text, p), "안내문자를 복사했어요."); });
+      pane.querySelectorAll("[data-rec-share]").forEach((b) => { b.onclick = () => shareText(fillInvite(RECOMMENDED_INVITES[b.dataset.recShare].text, p), p.page_title); });
+      pane.querySelectorAll("[data-rec-use]").forEach((b) => { b.onclick = async () => {
+        try { state.me = await API.updateProfile({ invite_template: RECOMMENDED_INVITES[b.dataset.recUse].text }); toast("내 안내문자를 바꿨어요."); paneShare(pane); } catch (e) { toast(e.message); }
+      }; });
+    };
+    pane.querySelector("#rec-next").onclick = () => { state.recStart = ((state.recStart || 0) + RECS_PER) % RECOMMENDED_INVITES.length; drawRecs(); };
+    drawRecs();
     const box = pane.querySelector("#qr");
     let ok = false;
     if (window.QRCode) {
@@ -658,8 +732,7 @@
         </section>
         <section data-sec="time" class="form-grid">
           <div class="field"><label for="f-unit">시간 칸 단위</label><select id="f-unit">${opt([10, 15, 20, 30, 60], p.slot_minutes, (v) => `${v}분`)}</select><span class="hint">신청자는 이 단위로 시작·끝 시간을 고릅니다.</span></div>
-          <div class="field"><label for="f-from">신청 받는 첫날</label><input id="f-from" type="date" value="${esc(p.book_from || "")}"><span class="hint">비워 두면 내일부터 받아요.</span></div>
-          <div class="field"><label for="f-until">신청 받는 마지막 날</label><input id="f-until" type="date" value="${esc(p.book_until || "")}"><span class="hint">비워 두면 오늘부터 ${Number(p.days_ahead) || 28}일까지 받아요.</span></div>
+          <p class="small muted full">신청 받는 기간은 '열린 시간' 탭에서 정해요.</p>
           <div class="field"><label for="f-start">하루 시작 시각</label><select id="f-start">${opt(times, p.day_start, (v) => v)}</select></div>
           <div class="field"><label for="f-end">하루 끝 시각</label><select id="f-end">${opt(times, p.day_end, (v) => v)}</select></div>
         </section>
@@ -715,12 +788,11 @@
       const bad = (tab, msg) => { state.settingsTab = tab; show(); err.textContent = msg; err.hidden = false; };
       if (!v("#f-name") || !v("#f-title")) return bad("basic", "이름과 신청 페이지 제목을 입력해 주세요.");
       if (v("#f-start") >= v("#f-end")) return bad("time", "하루 끝 시각이 시작 시각보다 늦어야 해요.");
-      if (v("#f-from") && v("#f-until") && v("#f-from") > v("#f-until")) return bad("time", "마지막 날이 첫날보다 빠를 수 없어요.");
       if (!/^[a-z0-9-]{3,30}$/.test(v("#f-slug"))) return bad("address", "주소는 영어 소문자, 숫자, - 로 3~30자여야 해요.");
       try {
         state.me = await API.updateProfile({
           name: v("#f-name"), contact_phone: v("#f-phone"), page_title: v("#f-title"), page_intro: pane.querySelector("#f-intro").value,
-          slot_minutes: Number(v("#f-unit")), day_start: v("#f-start"), day_end: v("#f-end"), book_from: v("#f-from") || null, book_until: v("#f-until") || null,
+          slot_minutes: Number(v("#f-unit")), day_start: v("#f-start"), day_end: v("#f-end"),
           default_place: v("#f-place"), slug: v("#f-slug"), invite_template: pane.querySelector("#f-invite").value, confirm_template: pane.querySelector("#f-confirm").value,
         });
         toast("저장했어요.");
@@ -825,107 +897,110 @@
     draw();
   }
 
-  // 학교 자료: 엑셀로 올린 전체 학교를 검색해서 레포트로 보기
-  async function paneLibrary(pane) {
-    pane.innerHTML = `<p class="muted">불러오는 중…</p>`;
-    const list = await API.listSchools();
-    state.schoolBack = "library";
-    const norm = (t) => String(t || "").replace(/\s/g, "").toLowerCase();
-    const districts = [...new Set(list.map((sc) => sc.district).filter(Boolean))].sort();
-    const cats = categorize(list);
-    const draw = () => {
-      const q = norm(state.libQuery), dq = state.libDistrict || "";
-      pane.querySelectorAll("[data-lv]").forEach((x) => x.setAttribute("aria-selected", x.dataset.lv === (state.libView || "list")));
-      const xs = list.filter((sc) => (!dq || sc.district === dq) && (!q || norm([sc.name, sc.short, sc.district, sc.found, sc.gender, sc.kind].join(" ")).includes(q)));
-      pane.querySelector("#lib-count").textContent = `${xs.length}개 학교`;
-      const asMap = state.libView === "map";
-      pane.querySelector("#lib-map").hidden = !asMap;
-      pane.querySelector("#lib-list").hidden = asMap;
-      if (asMap) { drawSchoolMap(pane.querySelector("#lib-map"), xs, cats); pane.querySelectorAll("[data-dq]").forEach((x) => x.setAttribute("aria-selected", x.dataset.dq === dq)); return; }
-      pane.querySelector("#lib-list").innerHTML = xs.length ? xs.map((sc) => {
-        const li = lastIntake(sc), tr = intakeTrend(sc);
-        return `<a class="sc-card" href="#/school/${sc.no}"><div class="sc-top"><strong>${esc(sc.short || sc.name)}</strong><span class="muted small">${esc([sc.district, sc.found, sc.gender].filter(Boolean).join(" · "))}</span></div>
-          <div class="sc-nums"><span>재학생 <b>${(sc.current || []).length}</b>명</span><span>${li ? `${li.year} 입교 <b>${li.count}</b>명` : "입교 기록 없음"}</span>${tr ? `<span class="trend ${tr.cls}">${tr.label}</span>` : ""}</div></a>`;
-      }).join("") : `<div class="empty-pane">${list.length ? "찾는 학교가 없어요. 이름 일부만 넣어 보세요." : "학교 자료가 아직 없어요. 관리자가 엑셀을 올리면 여기에 보여요."}</div>`;
-      pane.querySelectorAll("[data-dq]").forEach((x) => x.setAttribute("aria-selected", x.dataset.dq === dq));
-    };
-    pane.innerHTML = `<div class="list-head"><div><h2 class="section-title">학교 자료</h2><p class="hint-line">학교 이름이나 지역으로 찾아보세요. 학교를 누르면 레포트가 열려요.</p></div></div>
-      <div class="field"><input id="lib-q" type="search" placeholder="학교 이름 검색 (예: 부평, 대건)" value="${esc(state.libQuery || "")}" aria-label="학교 이름 검색"></div>
-      ${districts.length > 1 ? `<div class="subtabs" role="tablist"><button type="button" role="tab" data-dq="">전체</button>${districts.map((d) => `<button type="button" role="tab" data-dq="${esc(d)}">${esc(d)}</button>`).join("")}</div>` : ""}
-      <div class="lib-bar"><p class="muted small" id="lib-count"></p>
-        <div class="seg" role="tablist" aria-label="보기 방식"><button type="button" role="tab" data-lv="list">목록</button><button type="button" role="tab" data-lv="map">지도</button></div></div>
-      <div class="sc-map" id="lib-map" hidden></div>
-      <div class="sc-list" id="lib-list"></div>`;
-    pane.querySelectorAll("[data-lv]").forEach((x) => { x.onclick = () => { state.libView = x.dataset.lv; draw(); }; });
-    const qi = pane.querySelector("#lib-q");
-    qi.oninput = () => { state.libQuery = qi.value; draw(); };
-    pane.querySelectorAll("[data-dq]").forEach((x) => { x.onclick = () => { state.libDistrict = x.dataset.dq; draw(); }; });
-    draw();
-  }
-
   // 지도 (Leaflet + OpenStreetMap, 필요할 때만 불러옴). 학교 구분 색으로 점을 찍고 누르면 레포트로
   async function loadLeaflet() {
     if (window.L) return;
     const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "assets/vendor/leaflet/leaflet.css"; document.head.appendChild(css);
     await loadScript("assets/vendor/leaflet/leaflet.js");
   }
-  async function drawSchoolMap(box, xs, cats) {
-    const pts = xs.filter((sc) => sc.lat && sc.lng);
-    box.innerHTML = `<div class="map-canvas" id="map-canvas"></div><p class="muted small map-note">${pts.length < xs.length ? `위치를 모르는 학교 ${xs.length - pts.length}곳은 지도에 없어요. ` : ""}점을 누르면 학교 이름이, 이름을 누르면 레포트가 열려요.</p>
-      <div class="map-legend">${CAT_ORDER.map((k) => `<span><i style="background:${CATS[k].color}"></i>${CATS[k].short}</span>`).join("")}</div>`;
-    try { await loadLeaflet(); } catch (e) { box.querySelector("#map-canvas").innerHTML = `<p class="error">지도를 불러오지 못했어요.</p>`; return; }
+  // 지도는 한 번만 만들고, 검색·지역을 바꿀 때는 점만 다시 찍음
+  async function makeSchoolMap(box) {
+    await loadLeaflet();
     const L = window.L;
-    const map = L.map(box.querySelector("#map-canvas"), { scrollWheelZoom: false }).setView([37.47, 126.68], 11);
+    const map = L.map(box, { scrollWheelZoom: false }).setView([37.47, 126.68], 11);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OpenStreetMap" }).addTo(map);
     L.circleMarker([37.4717, 126.6411], { radius: 9, color: "#17254f", weight: 3, fillColor: "#ffffff", fillOpacity: 1 }).addTo(map).bindPopup(`<b>${SCHOOL}</b>`);
-    for (const sc of pts) {
-      const c = CATS[(cats.get(sc) || {}).key] || CATS.steady;
-      L.circleMarker([sc.lat, sc.lng], { radius: 8, color: "#fff", weight: 2, fillColor: c.color, fillOpacity: 0.95 }).addTo(map)
-        .bindPopup(`<a class="map-pop" href="#/school/${sc.no}"><b>${esc(sc.short || sc.name)}</b><br><span>${esc(c.short)} · ${esc(sc.district || "")}</span><br>레포트 보기 ›</a>`);
-    }
-    // 섬 학교(백령·연평 등)까지 다 맞추면 시내가 너무 작아져서, 육지 학교가 있으면 그쪽에 맞춤 (섬은 축소하면 보임)
-    const land = pts.filter((sc) => sc.lng > 126.45);
-    const fit = land.length ? land : pts;
-    if (fit.length) map.fitBounds(L.latLngBounds(fit.map((sc) => [sc.lat, sc.lng])).pad(0.1), { maxZoom: 14 });
+    const layer = L.layerGroup().addTo(map);
     setTimeout(() => map.invalidateSize(), 50);
+    return {
+      update(xs, cats) {
+        layer.clearLayers();
+        const pts = xs.filter((sc) => sc.lat && sc.lng);
+        for (const sc of pts) {
+          const c = CATS[(cats.get(sc) || {}).key] || CATS.steady;
+          L.circleMarker([sc.lat, sc.lng], { radius: 8, color: "#fff", weight: 2, fillColor: c.color, fillOpacity: 0.95 }).addTo(layer)
+            .bindPopup(`<a class="map-pop" href="#/school/${sc.no}"><b>${esc(sc.short || sc.name)}</b><br><span>${esc(c.short)} · ${esc(sc.district || "")}</span><br>레포트 보기 ›</a>`);
+        }
+        // 섬 학교(백령·연평 등)까지 다 맞추면 시내가 너무 작아져서, 육지 학교가 있으면 그쪽에 맞춤 (섬은 축소하면 보임)
+        const land = pts.filter((sc) => sc.lng > 126.45);
+        const fit = land.length ? land : pts;
+        if (fit.length) map.fitBounds(L.latLngBounds(fit.map((sc) => [sc.lat, sc.lng])).pad(0.1), { maxZoom: 14 });
+      },
+    };
   }
 
-  // 학교 관리: 입교 실적으로 학교를 나눠 보여 줌 (최고 관리자는 구분·메모를 직접 정할 수 있음)
-  async function paneManage(pane) {
+  // 학교 자료: 지도 → 네 가지 구분 → 학교 목록을 한 화면에서. 최고 관리자는 구분·메모를 직접 정할 수 있음
+  async function paneLibrary(pane) {
     pane.innerHTML = `<p class="muted">불러오는 중…</p>`;
     const list = await API.listSchools();
-    state.schoolBack = "manage";
+    state.schoolBack = "library";
     const owner = !!state.me.owner;
+    const norm = (t) => String(t || "").replace(/\s/g, "").toLowerCase();
+    const districts = [...new Set(list.map((sc) => sc.district).filter(Boolean))].sort();
     const cats = categorize(list);
-    const groups = Object.fromEntries(CAT_ORDER.map((k) => [k, []]));
-    for (const sc of list) groups[cats.get(sc).key].push(sc);
-    groups.care.sort((a, b) => (intakeTrend(a)?.d ?? 0) - (intakeTrend(b)?.d ?? 0));
-    groups.focus.sort((a, b) => recentSum(b) - recentSum(a));
-    const cur = CAT_ORDER.includes(state.manageCat) ? state.manageCat : "care";
-    const card = (sc) => {
+    let mapCtl = null, shown = [];
+    const card = (sc, showCat) => {
       const li = lastIntake(sc), info = cats.get(sc);
       return `<div class="mg-card" style="--c:${CATS[info.key].color}"><a href="#/school/${sc.no}" class="mg-main">
-          <div class="sc-top"><strong>${esc(sc.short || sc.name)}</strong><span class="muted small">${esc(sc.district || "")}</span></div>
+          <div class="sc-top"><strong>${esc(sc.short || sc.name)}${showCat ? ` <span class="cat-chip" style="--c:${CATS[info.key].color}">${esc(CATS[info.key].short)}</span>` : ""}</strong><span class="muted small">${esc([sc.district, sc.found, sc.gender].filter(Boolean).join(" · "))}</span></div>
           <div class="sc-nums"><span>${esc(info.why)}</span><span>${li ? `${li.year} 입교 <b>${li.count}</b>명` : "입교 기록 없음"}</span><span>재학생 <b>${(sc.current || []).length}</b>명</span></div>
           ${sc.memo ? `<div class="mg-memo">${esc(sc.memo)}</div>` : ""}</a>
         ${owner ? `<button class="btn btn-sm" data-mark="${sc.no}">구분·메모</button>` : ""}</div>`;
     };
-    pane.innerHTML = `<div class="list-head"><div><h2 class="section-title">학교 관리</h2><p class="hint-line">입교 실적으로 학교를 나눴어요. 빨간 학교부터 먼저 챙겨 주세요.${owner ? " 구분은 직접 바꿀 수 있어요." : ""}</p></div></div>
-      ${groups.care.length ? `<div class="mg-alert"><b>신경 써야 할 학교 ${groups.care.length}곳</b><span>입교가 크게 줄었거나 끊긴 학교예요: ${groups.care.slice(0, 5).map((sc) => esc(sc.short || sc.name)).join(", ")}${groups.care.length > 5 ? " 등" : ""}</span></div>` : ""}
-      <div class="mg-tiles">${CAT_ORDER.map((k) => `<button type="button" class="mg-tile" data-cat="${k}" aria-pressed="${k === cur}" style="--c:${CATS[k].color}"><b>${groups[k].length}</b><span>${CATS[k].label}</span><small>${CATS[k].desc}</small></button>`).join("")}</div>
-      <h3 class="mg-sub" style="color:${CATS[cur].color}">${CATS[cur].label} ${groups[cur].length}곳</h3>
-      <div class="sc-list">${groups[cur].length ? groups[cur].map(card).join("") : `<div class="empty-pane">해당하는 학교가 없어요.</div>`}</div>`;
-    pane.querySelectorAll("[data-cat]").forEach((b) => { b.onclick = () => { state.manageCat = b.dataset.cat; paneManage(pane); }; });
-    pane.querySelectorAll("[data-mark]").forEach((b) => { b.onclick = () => {
-      const sc = list.find((x) => String(x.no) === b.dataset.mark);
+    const draw = () => {
+      const q = norm(state.libQuery), dq = state.libDistrict || "";
+      const xs = list.filter((sc) => (!dq || sc.district === dq) && (!q || norm([sc.name, sc.short, sc.district, sc.found, sc.gender, sc.kind].join(" ")).includes(q)));
+      shown = xs;
+      if (mapCtl) mapCtl.update(xs, cats);
+      const noGeo = xs.filter((sc) => !(sc.lat && sc.lng)).length;
+      pane.querySelector("#lib-note").textContent = `${xs.length}개 학교${noGeo ? ` (위치를 모르는 ${noGeo}곳은 지도에 없어요)` : ""} · 점을 누르면 학교 이름이, 이름을 누르면 레포트가 열려요.`;
+      const groups = Object.fromEntries(CAT_ORDER.map((k) => [k, []]));
+      for (const sc of xs) groups[cats.get(sc).key].push(sc);
+      groups.care.sort((a, b) => (intakeTrend(a)?.d ?? 0) - (intakeTrend(b)?.d ?? 0));
+      for (const k of ["focus", "new", "steady"]) groups[k].sort((a, b) => recentSum(b) - recentSum(a) || String(a.name).localeCompare(String(b.name), "ko"));
+      const cur = CAT_ORDER.includes(state.manageCat) ? state.manageCat : "care";
+      const searching = !!q;
+      pane.querySelector("#lib-alert").innerHTML = groups.care.length
+        ? `<div class="mg-alert"><b>신경 써야 할 학교 ${groups.care.length}곳</b><span>입교가 크게 줄었거나 끊긴 학교예요: ${groups.care.slice(0, 5).map((sc) => esc(sc.short || sc.name)).join(", ")}${groups.care.length > 5 ? " 등" : ""}</span></div>` : "";
+      pane.querySelector("#lib-tiles").innerHTML = CAT_ORDER.map((k) => `<button type="button" class="mg-tile" data-cat="${k}" aria-pressed="${!searching && k === cur}" style="--c:${CATS[k].color}"><b>${groups[k].length}</b><span>${CATS[k].label}</span><small>${CATS[k].desc}</small></button>`).join("");
+      const rows = searching ? CAT_ORDER.flatMap((k) => groups[k]) : groups[cur];
+      pane.querySelector("#lib-sub").innerHTML = searching
+        ? `<span>검색 결과 ${rows.length}곳</span>`
+        : `<span style="color:${CATS[cur].color}">${CATS[cur].label} ${rows.length}곳</span>`;
+      pane.querySelector("#lib-list").innerHTML = rows.length
+        ? rows.map((sc) => card(sc, searching)).join("")
+        : `<div class="empty-pane">${list.length ? (searching ? "찾는 학교가 없어요. 이름 일부만 넣어 보세요." : "해당하는 학교가 없어요.") : "학교 자료가 아직 없어요. 최고 관리자가 엑셀을 올리면 여기에 보여요."}</div>`;
+      pane.querySelectorAll("[data-cat]").forEach((b) => { b.onclick = () => { state.manageCat = b.dataset.cat; state.libQuery = ""; pane.querySelector("#lib-q").value = ""; draw(); }; });
+      pane.querySelectorAll("[data-mark]").forEach((b) => { b.onclick = () => openMark(list.find((x) => String(x.no) === b.dataset.mark)); });
+    };
+    const openMark = (sc) => {
       openModal(`<div class="card-body"><h2 class="section-title">${esc(sc.short || sc.name)} 구분</h2>
         <div class="field"><label for="m-cat">구분</label><select id="m-cat"><option value="">자동 (입교 실적으로)</option>${CAT_ORDER.map((k) => `<option value="${k}" ${sc.mark === k ? "selected" : ""}>${CATS[k].label}</option>`).join("")}</select></div>
         <div class="field"><label for="m-memo">메모 (모든 선생님에게 보여요)</label><textarea id="m-memo" rows="3" maxlength="200">${esc(sc.memo || "")}</textarea></div>
         <div class="form-actions"><button class="btn" data-close>취소</button><button class="btn btn-primary" id="m-go">저장</button></div></div>`);
       document.getElementById("m-go").onclick = async () => {
-        try { await API.setSchoolMark(sc.name, document.getElementById("m-cat").value, document.getElementById("m-memo").value.trim()); closeModal(); toast("저장했어요."); paneManage(pane); } catch (e) { toast(e.message); }
+        try { await API.setSchoolMark(sc.name, document.getElementById("m-cat").value, document.getElementById("m-memo").value.trim()); closeModal(); toast("저장했어요."); paneLibrary(pane); } catch (e) { toast(e.message); }
       };
-    }; });
+    };
+    pane.innerHTML = `<div class="list-head"><div><h2 class="section-title">학교 자료</h2><p class="hint-line">지도에서 학교를 찾고, 아래 구분을 눌러 학교 목록을 보세요. 학교를 누르면 레포트가 열려요.${owner ? " 구분은 직접 바꿀 수 있어요." : ""}</p></div></div>
+      <div class="lib-filters">
+        <input id="lib-q" type="search" placeholder="학교 이름 검색 (예: 부평, 대건)" value="${esc(state.libQuery || "")}" aria-label="학교 이름 검색">
+        <select id="lib-d" aria-label="지역"><option value="">전체 지역</option>${districts.map((d) => `<option value="${esc(d)}" ${d === state.libDistrict ? "selected" : ""}>${esc(d)}</option>`).join("")}</select>
+      </div>
+      <div class="sc-map"><div class="map-canvas" id="lib-map"></div></div>
+      <p class="muted small map-note" id="lib-note"></p>
+      <div class="map-legend">${CAT_ORDER.map((k) => `<span><i style="background:${CATS[k].color}"></i>${CATS[k].short}</span>`).join("")}</div>
+      <div id="lib-alert"></div>
+      <div class="mg-tiles" id="lib-tiles"></div>
+      <h3 class="mg-sub" id="lib-sub"></h3>
+      <div class="sc-list" id="lib-list"></div>`;
+    const qi = pane.querySelector("#lib-q");
+    qi.oninput = () => { state.libQuery = qi.value; draw(); };
+    pane.querySelector("#lib-d").onchange = (e) => { state.libDistrict = e.target.value; draw(); };
+    draw();
+    makeSchoolMap(pane.querySelector("#lib-map"))
+      .then((c) => { mapCtl = c; c.update(shown, cats); })
+      .catch(() => { pane.querySelector("#lib-map").innerHTML = `<p class="error" style="padding:16px">지도를 불러오지 못했어요. 아래 목록으로 학교를 찾아 주세요.</p>`; });
   }
 
   async function viewSchool(no) {
@@ -937,7 +1012,7 @@
     const sc = list.find((x) => String(x.no) === String(no));
     if (!sc) { simpleCard("학교를 찾지 못했어요", `<p class="muted"><a href="#/app/schools">방문 학교 목록</a>으로 돌아가 주세요.</p>`); return; }
     const myBk = bookingsFor(sc, bookings, list);
-    const back = { library: ["#/app/library", "학교 자료"], manage: ["#/app/manage", "학교 관리"] }[state.schoolBack] || ["#/app/schools", "방문 학교"];
+    const back = state.schoolBack === "library" ? ["#/app/library", "학교 자료"] : ["#/app/schools", "방문 학교"];
     const intake = (sc.intake || []).filter((x) => x.count != null);
     const max = Math.max(1, ...intake.map((x) => x.count));
     const total = totalIntake(sc), li = lastIntake(sc);
