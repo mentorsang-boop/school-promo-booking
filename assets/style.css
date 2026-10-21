@@ -444,3 +444,34 @@ table.data tr:last-child td { border-bottom: 0; }
 .lg-out { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--brand-50); border: 1px dashed var(--line-strong); margin-right: 5px; vertical-align: middle; opacity: .6; }
 .period-inputs { flex: 1; min-width: 0; }
 .period-inputs input { flex: 1; min-width: 0; width: 100%; }
+
+/* v3.8: 길찾기 */
+.nav-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.nav-lbl { font-size: var(--step--1); opacity: .85; margin-right: 2px; }
+.nav-btn { display: inline-block; padding: 6px 12px; border-radius: 999px; font-size: var(--step--1); font-weight: 600; text-decoration: none; color: #fff; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.55); }
+.nav-btn.nav-light { color: var(--brand); background: var(--brand-50); border-color: var(--line-strong); }
+.map-nav { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.map-nav .nav-row { margin-top: 6px; }
+.nav-pick { display: grid; gap: 8px; margin: 12px 0; }
+.nav-big { justify-content: center; text-decoration: none; background: var(--brand-50); color: var(--brand); border: 1px solid var(--line-strong); }
+.sc-address { font-size: var(--step--1); color: var(--ink-3); }
+.mg-side { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+/* v3.8: 열린 시간 안내 */
+.guide { margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); margin-bottom: 14px; }
+.guide > summary { cursor: pointer; list-style: none; padding: 12px 14px; font-weight: 700; color: var(--brand-900); display: flex; align-items: center; justify-content: space-between; }
+.guide > summary::-webkit-details-marker { display: none; }
+.guide > summary::after { content: "▾"; color: var(--ink-3); transition: transform .15s; }
+.guide[open] > summary::after { transform: rotate(180deg); }
+.guide-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 0 14px 14px; }
+@media (max-width: 760px) { .guide-body { grid-template-columns: 1fr; gap: 10px; } }
+.guide-body h3 { margin: 0 0 8px; font-size: var(--step-0); color: var(--brand); }
+.guide-body ol { margin: 0 0 14px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+.guide-body ol li, .guide-body ul li { font-size: var(--step--1); line-height: 1.5; }
+.guide-body ol li b { display: block; color: var(--ink); font-size: var(--step-0); }
+.guide-body ol li span { color: var(--ink-2); }
+.guide-body ul.tips { margin: 0; padding-left: 18px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
+
+/* v3.8 전화 예약 등록 */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#phone-add { margin-left: auto; }

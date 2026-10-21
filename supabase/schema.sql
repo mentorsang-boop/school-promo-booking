@@ -289,3 +289,7 @@ create policy "active users read school info" on public.school_info
   for select to authenticated using ((select public.is_active_user()));
 create policy "owner manages school info" on public.school_info
   for all to authenticated using ((select public.is_owner())) with check ((select public.is_owner()));
+
+-- v3.8: 전화로 받은 예약을 본인 계정에 직접 등록 (겹치는 시간은 bookings_no_overlap 이 막음)
+create policy "insert own bookings" on public.bookings for insert to authenticated
+  with check (user_id = (select auth.uid()) and (select public.is_active_user()));

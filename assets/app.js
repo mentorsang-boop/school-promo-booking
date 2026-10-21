@@ -93,6 +93,17 @@
   }
   function inviteMessage(p) { return fillInvite(p.invite_template || API.DEFAULT_INVITE, p); }
   // 공유 탭의 추천 안내문자 ({사용자} {연락처} {링크}는 보낼 때 채워짐)
+  // 길찾기: 카카오맵은 웹 주소라 앱이 없어도 열리고, 티맵·네이버지도는 휴대폰에 앱이 있어야 열려요
+  function navLinks(sc) {
+    if (!(sc.lat && sc.lng)) return [];
+    const name = encodeURIComponent(sc.name);
+    return [
+      { label: "카카오맵", href: `https://m.map.kakao.com/scheme/route?ep=${sc.lat},${sc.lng}&en=${name}&by=CAR` },
+      { label: "티맵", href: `tmap://route?goalname=${name}&goalx=${sc.lng}&goaly=${sc.lat}` },
+      { label: "네이버지도", href: `nmap://route/car?dlat=${sc.lat}&dlng=${sc.lng}&dname=${name}&appname=${encodeURIComponent(location.hostname || "promo-booking")}` },
+    ];
+  }
+  const navBtns = (sc, cls) => navLinks(sc).map((n) => `<a class="${cls}" href="${esc(n.href)}"${n.href.startsWith("http") ? ` target="_blank" rel="noopener"` : ""}>${n.label}</a>`).join("");
   const RECOMMENDED_INVITES = [
     { title: "처음 연락할 때", when: "진로·위탁 담당 선생님께 첫 인사",
       text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n2학년 학생들의 진로 선택에 도움이 될 위탁교육 과정을 소개드리고자 연락드립니다.\n학과 체험 영상과 졸업생 진로 사례를 30분~1시간 정도 안내해 드릴 수 있습니다.\n\n아래 링크에서 편하신 날짜와 시간을 골라 주시면 바로 확정됩니다.\n{링크}\n\n문의: {사용자} {연락처}\n감사합니다." },
@@ -122,10 +133,16 @@
       text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n시험이 끝나고 진로를 고민하는 시기에 맞춰, 학생들에게 위탁교육 과정을 소개해 드리고자 연락드립니다.\n\n학교 일정에 맞춰 날짜를 골라 주세요.\n{링크}\n\n감사합니다." },
     { title: "진로 행사·학부모 총회와 함께", when: "행사 일정에 맞출 때",
       text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n학부모 총회·진로 행사에 맞춰 위탁교육 안내 부스나 짧은 설명 시간을 운영해 드릴 수 있습니다.\n행사 일정에 맞춰 신청해 주세요.\n{링크}\n\n문의: {사용자} {연락처}\n감사합니다." },
+    { title: "날짜를 정하기 어려울 때", when: "여러 날짜 중 고르게 하고 싶을 때",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n방문 날짜를 정하기 어려우시면, 학교 일정에 맞춰 여러 날짜 중 편하신 날을 골라 주시면 됩니다. 점심시간이나 방과 후 시간도 가능합니다.\n{링크}\n\n문의: {연락처}\n감사합니다." },
+    { title: "학생·학부모 개별 상담까지", when: "설명 뒤 상담을 함께 하고 싶을 때",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n위탁교육 설명과 함께, 관심 있는 학생·학부모님과 개별 상담도 진행해 드릴 수 있습니다. 상담이 필요하시면 신청 때 요청사항에 적어 주세요.\n\n방문 일정 신청: {링크}\n문의: {사용자} {연락처}\n감사합니다." },
+    { title: "새 학기·1학기 초", when: "학기 초 일정 잡을 때",
+      text: "안녕하세요, 인천산업정보학교 {사용자}입니다.\n새 학기를 맞아 올해 홍보 방문 일정을 잡고 있습니다. 학교 일정이 정해지시는 대로 편한 날짜를 골라 주세요.\n{링크}\n\n문의: {연락처}\n감사합니다." },
     { title: "편하게 (아는 선생님)", when: "격식 없이 친근하게",
       text: "선생님~ 인천산업정보학교 {사용자}예요 :)\n올해도 학교 홍보 다니는 시기가 왔네요. 시간 되실 때 아래에서 편한 날로 골라 주세요!\n{링크}\n늘 감사합니다." },
   ];
-  const RECS_PER = 3;
+  const RECS_PER = 6;
 
   function openModal(html) {
     $modal.innerHTML = `<div class="modal-back"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
@@ -375,6 +392,8 @@
       const days = Math.round((u - f) / 86400000) + 1;
       return `${fmtDay(f)} ~ ${fmtDay(u)} (${days}일) 사이 날짜만 신청받아요.${q.book_from && q.book_until ? "" : " 비워 둔 칸은 자동으로 정해져요 (첫날은 내일, 마지막 날은 오늘부터 " + (Number(q.days_ahead) || 28) + "일 뒤)."}`;
     };
+    let guideOpen = false;
+    try { guideOpen = localStorage.getItem("promo-guide-open") === "1"; } catch (e) { /* 저장소 사용 불가 */ }
     pane.innerHTML = `
       <div class="period-card">
         <div class="period-top"><b>신청 받는 기간</b>
@@ -389,7 +408,30 @@
           <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span><span><i class="lg-out"></i>신청 기간 밖</span></div></div>
         <div class="slots-panel" id="panel"></div>
       </div>
-      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요. 흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</p>`;
+      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요. 흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</p>
+      <details class="guide" id="guide" ${guideOpen ? "open" : ""}>
+        <summary>홍보 방문 순서와 이 페이지 사용 방법</summary>
+        <div class="guide-body">
+          <div class="guide-col"><h3>방문 전</h3><ol>
+            <li><b>신청 기간 정하기</b><span>위쪽 '신청 받는 기간'에서 첫날과 마지막 날을 골라요.</span></li>
+            <li><b>열린 시간 열기</b><span>'수업시간표로 한 번에 열기'를 쓰거나, 달력에서 날짜를 골라 시간을 눌러 열어요.</span></li>
+            <li><b>학교에 링크 보내기</b><span>'공유' 탭에서 안내문자를 복사하거나 카카오톡으로 보내요. 추천 문구도 있어요.</span></li>
+            <li><b>신청 확인하고 확정 문자 보내기</b><span>신청은 바로 확정돼요. '예약 목록'에서 확인하고 '안내문자'로 확정 문자를 보내요.</span></li>
+            <li><b>학교 미리 알아보기</b><span>'학교 자료'에서 학교 레포트(입교 추이, 재학생, 연락처)를 보고 미팅을 준비해요. 길찾기도 있어요.</span></li>
+          </ol></div>
+          <div class="guide-col"><h3>방문 후</h3><ol class="after" start="6">
+            <li><b>지난 방문 보기</b><span>'방문 학교'의 '지난 방문'에서 다녀온 학교를 다시 볼 수 있어요.</span></li>
+            <li><b>다음 연락 정하기</b><span>'학교 자료'의 구분을 보고 다시 연락할 학교(신경 써야 할 학교 등)를 정해요. 입교 결과는 최고 관리자가 새 엑셀을 올리면 반영돼요.</span></li>
+          </ol>
+          <h3>이 페이지 사용 방법</h3>
+          <ul class="tips">
+            <li>시간 칸을 누르면 열리고, 다시 누르면 닫혀요. 끌어서 여러 칸을 한 번에 바꿀 수 있어요.</li>
+            <li>바꾼 내용은 자동으로 저장돼요.</li>
+            <li>예약된 시간은 닫을 수 없어요. 예약 목록에서 취소하면 다시 열려요.</li>
+            <li>흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</li>
+          </ul></div>
+        </div>
+      </details>`;
 
     const $cal = pane.querySelector("#cal");
     const $panel = pane.querySelector("#panel");
@@ -475,6 +517,7 @@
       }, 500);
     }
 
+    pane.querySelector("#guide").addEventListener("toggle", (e) => { try { localStorage.setItem("promo-guide-open", e.target.open ? "1" : "0"); } catch (err) { /* 무시 */ } });
     // 신청 기간: 날짜를 고르는 즉시 저장 (페이지 설정에서 옮겨 옴)
     const $from = pane.querySelector("#pr-from"), $until = pane.querySelector("#pr-until");
     const savePeriod = async (from, until, msg) => {
@@ -544,7 +587,7 @@
         ${rows.map((r) => `<tr><th>${r}</th>${WD5.map((w) => `<td><button type="button" class="tt-cell ${marked.has(`${w}-${r}`) ? "on" : ""}" data-k="${w}-${r}" aria-label="${WD[w]} ${r}"></button></td>`).join("")}</tr>`).join("")}
       </tbody></table></div>
       <div class="legend"><span><i class="lg-class"></i>수업</span><span><i class="lg-open"></i>비어 있음 (열림)</span></div>
-      <p class="small muted">적용 기간: ${fmtDay(first)} ~ ${fmtDay(last)} (페이지 설정 → 신청 시간에서 바꿀 수 있어요). 이 기간에 직접 열고 닫은 시간은 시간표 기준으로 바뀌고, 이미 받은 예약은 그대로예요.</p>
+      <p class="small muted">적용 기간: ${fmtDay(first)} ~ ${fmtDay(last)} (열린 시간 맨 위 '신청 받는 기간'에서 바꿀 수 있어요). 이 기간에 직접 열고 닫은 시간은 시간표 기준으로 바뀌고, 이미 받은 예약은 그대로예요.</p>
       <p class="error" id="tt-err" hidden></p>
       <div class="form-actions"><button class="btn" data-close>닫기</button><button class="btn" id="tt-save">시간표만 저장</button><button class="btn btn-primary" id="tt-apply">신청 기간에 적용</button></div>
     </div>`);
@@ -610,6 +653,7 @@
 
     pane.innerHTML = `
       <div class="list-head"><h2 class="section-title">예약 목록</h2>
+        <button type="button" class="btn btn-primary btn-sm" id="phone-add">＋ 전화 예약 등록</button>
         <div class="month-summary"><div class="stat"><b>${confirmed.length}건</b><span>이번 달 확정</span></div><div class="stat"><b>${upcoming.length}건</b><span>남은 방문</span></div><div class="stat"><b>${inMonth.length - confirmed.length}건</b><span>취소</span></div></div></div>
       <div class="stack">
         <div id="bcal" class="bcal"></div>
@@ -631,6 +675,7 @@
     const am = pane.querySelector("#all-month");
     if (am) am.onclick = () => { state.bookDay = null; paneBookings(pane); };
 
+    pane.querySelector("#phone-add").onclick = () => openPhoneBooking(pane);
     pane.querySelectorAll("[data-msg]").forEach((btn) => {
       btn.onclick = () => {
         const b = all.find((x) => x.id === btn.dataset.msg);
@@ -653,6 +698,54 @@
         };
       };
     });
+  }
+
+  // 전화로 받은 예약을 내 계정에 바로 등록 (열린 시간·신청 기간과 상관없이, 겹치는 예약만 막음)
+  async function openPhoneBooking(pane) {
+    const unit = Number(state.me.slot_minutes) || 30;
+    const base = state.bookDay || addDays(dayStart(new Date()), 1);
+    const times = [];
+    for (let m = 7 * 60; m <= 20 * 60; m += unit) times.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+    const timeOpt = (sel) => times.map((t) => `<option value="${t}"${t === sel ? " selected" : ""}>${t}</option>`).join("");
+    let schools = [];
+    try { schools = await API.listSchools(); } catch (e) { /* 목록 없이도 입력 가능 */ }
+    openModal(`<form class="card-body" id="ph-form"><h2 class="section-title">전화 예약 등록</h2>
+      <p class="small muted">학교에서 전화로 신청한 방문을 바로 넣어요. 열어 둔 시간이 아니어도 등록돼요.</p>
+      <div class="field"><label for="ph-school">학교</label><input id="ph-school" list="ph-schools" required maxlength="100" autocomplete="off" placeholder="학교 이름"><datalist id="ph-schools">${schools.map((x) => `<option value="${esc(x.name)}">`).join("")}</datalist></div>
+      <div class="grid-2"><div class="field"><label for="ph-name">담당 선생님</label><input id="ph-name" required maxlength="50"></div>
+      <div class="field"><label for="ph-phone">연락처</label><input id="ph-phone" type="tel" inputmode="tel" required placeholder="010-0000-0000"></div></div>
+      <div class="field"><label for="ph-date">날짜</label><input id="ph-date" type="date" required value="${ymdLocal(base)}"></div>
+      <div class="grid-2"><div class="field"><label for="ph-s">시작</label><select id="ph-s">${timeOpt("10:00")}</select></div>
+      <div class="field"><label for="ph-e">끝</label><select id="ph-e">${timeOpt("11:00")}</select></div></div>
+      <div class="field"><label for="ph-target">대상 (선택)</label><input id="ph-target" maxlength="100" placeholder="예: 3학년 50명"></div>
+      <div class="field"><label for="ph-place">장소 (선택)</label><input id="ph-place" maxlength="100" value="${esc(state.me.default_place || "")}"></div>
+      <div class="field"><label for="ph-req">요청사항 (선택)</label><textarea id="ph-req" rows="2" maxlength="1000"></textarea></div>
+      <p class="error" id="ph-err" hidden></p>
+      <div class="form-actions"><button type="button" class="btn" data-close>닫기</button><button class="btn btn-primary" id="ph-save">예약 등록</button></div></form>`);
+    document.getElementById("ph-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const v = (id) => document.getElementById(id).value.trim();
+      const err = document.getElementById("ph-err");
+      const at = (t) => { const [h, m] = t.split(":").map(Number); const d = fromYmd(v("ph-date")); d.setHours(h, m, 0, 0); return d; };
+      const s = at(v("ph-s")), en = at(v("ph-e"));
+      err.hidden = true;
+      if (!/^[0-9+\-\s()]{8,20}$/.test(v("ph-phone"))) { err.textContent = "연락처를 숫자로 입력해 주세요. 예: 010-1234-5678"; err.hidden = false; return; }
+      if (en <= s) { err.textContent = "끝나는 시간이 시작보다 늦어야 해요."; err.hidden = false; return; }
+      const btn = document.getElementById("ph-save");
+      btn.disabled = true;
+      try {
+        const b = await API.addBooking(s.toISOString(), en.toISOString(), { school: v("ph-school"), contact_name: v("ph-name"), phone: v("ph-phone"), target: v("ph-target"), place: v("ph-place"), request: v("ph-req") });
+        closeModal(); toast("예약을 등록했어요.");
+        state.month = monthStart(s); state.bookDay = dayStart(s);
+        await paneBookings(pane);
+        openModal(`<div class="card-body"><h2 class="section-title">${esc(b.school)} 안내문자</h2>
+          <p class="small muted">전화 받은 선생님께 확정 문자를 보내 드리세요.</p>
+          <div class="field"><textarea id="msg-edit" rows="12">${esc(confirmMessage(state.me, b))}</textarea></div>
+          <div class="form-actions"><button class="btn" data-close>나중에</button><button class="btn" id="m-copy">복사</button><button class="btn btn-kakao" id="m-share">카카오톡으로 보내기</button></div></div>`);
+        document.getElementById("m-copy").onclick = () => copyText(document.getElementById("msg-edit").value);
+        document.getElementById("m-share").onclick = () => shareText(document.getElementById("msg-edit").value);
+      } catch (e2) { err.textContent = e2.message; err.hidden = false; btn.disabled = false; }
+    };
   }
 
   // 공유
@@ -919,7 +1012,7 @@
         for (const sc of pts) {
           const c = CATS[(cats.get(sc) || {}).key] || CATS.steady;
           L.circleMarker([sc.lat, sc.lng], { radius: 8, color: "#fff", weight: 2, fillColor: c.color, fillOpacity: 0.95 }).addTo(layer)
-            .bindPopup(`<a class="map-pop" href="#/school/${sc.no}"><b>${esc(sc.short || sc.name)}</b><br><span>${esc(c.short)} · ${esc(sc.district || "")}</span><br>레포트 보기 ›</a>`);
+            .bindPopup(`<a class="map-pop" href="#/school/${sc.no}"><b>${esc(sc.short || sc.name)}</b><br><span>${esc(c.short)} · ${esc(sc.district || "")}</span><br>레포트 보기 ›</a>${sc.address ? `<div class="map-nav"><div class="muted small">${esc(sc.address)}</div><div class="nav-row">${navBtns(sc, "nav-btn nav-light")}</div></div>` : ""}`);
         }
         // 섬 학교(백령·연평 등)까지 다 맞추면 시내가 너무 작아져서, 육지 학교가 있으면 그쪽에 맞춤 (섬은 축소하면 보임)
         const land = pts.filter((sc) => sc.lng > 126.45);
@@ -944,8 +1037,9 @@
       return `<div class="mg-card" style="--c:${CATS[info.key].color}"><a href="#/school/${sc.no}" class="mg-main">
           <div class="sc-top"><strong>${esc(sc.short || sc.name)}${showCat ? ` <span class="cat-chip" style="--c:${CATS[info.key].color}">${esc(CATS[info.key].short)}</span>` : ""}</strong><span class="muted small">${esc([sc.district, sc.found, sc.gender].filter(Boolean).join(" · "))}</span></div>
           <div class="sc-nums"><span>${esc(info.why)}</span><span>${li ? `${li.year} 입교 <b>${li.count}</b>명` : "입교 기록 없음"}</span><span>재학생 <b>${(sc.current || []).length}</b>명</span></div>
+          ${sc.address ? `<div class="sc-address">${esc(sc.address)}</div>` : ""}
           ${sc.memo ? `<div class="mg-memo">${esc(sc.memo)}</div>` : ""}</a>
-        ${owner ? `<button class="btn btn-sm" data-mark="${sc.no}">구분·메모</button>` : ""}</div>`;
+        <div class="mg-side">${navLinks(sc).length ? `<button class="btn btn-sm btn-soft" data-nav="${sc.no}">길찾기</button>` : ""}${owner ? `<button class="btn btn-sm" data-mark="${sc.no}">구분·메모</button>` : ""}</div></div>`;
     };
     const draw = () => {
       const q = norm(state.libQuery), dq = state.libDistrict || "";
@@ -972,6 +1066,14 @@
         : `<div class="empty-pane">${list.length ? (searching ? "찾는 학교가 없어요. 이름 일부만 넣어 보세요." : "해당하는 학교가 없어요.") : "학교 자료가 아직 없어요. 최고 관리자가 엑셀을 올리면 여기에 보여요."}</div>`;
       pane.querySelectorAll("[data-cat]").forEach((b) => { b.onclick = () => { state.manageCat = b.dataset.cat; state.libQuery = ""; pane.querySelector("#lib-q").value = ""; draw(); }; });
       pane.querySelectorAll("[data-mark]").forEach((b) => { b.onclick = () => openMark(list.find((x) => String(x.no) === b.dataset.mark)); });
+      pane.querySelectorAll("[data-nav]").forEach((b) => { b.onclick = () => openNav(list.find((x) => String(x.no) === b.dataset.nav)); });
+    };
+    const openNav = (sc) => {
+      openModal(`<div class="card-body"><h2 class="section-title">${esc(sc.short || sc.name)} 길찾기</h2>
+        <p class="muted">${esc(sc.address || "")}</p>
+        <div class="nav-pick">${navBtns(sc, "btn nav-big")}</div>
+        <p class="small muted">티맵·네이버지도는 휴대폰에 앱이 설치되어 있어야 열려요. 눌렀을 때 아무 일도 없으면 카카오맵을 써 주세요.</p>
+        <div class="form-actions"><button class="btn" data-close>닫기</button></div></div>`);
     };
     const openMark = (sc) => {
       openModal(`<div class="card-body"><h2 class="section-title">${esc(sc.short || sc.name)} 구분</h2>
@@ -1040,6 +1142,7 @@
         <div><h1>${esc(sc.short || sc.name)}</h1><p class="muted">${esc(sc.name)}</p></div>
         <div class="row">${[sc.district, sc.found, sc.gender, sc.kind].filter(Boolean).map((t) => `<span class="badge">${esc(t)}</span>`).join("")}</div>
         ${sc.address ? `<p class="sc-addr">${esc(sc.address)}</p>` : ""}
+        ${navLinks(sc).length ? `<div class="nav-row"><span class="nav-lbl">길찾기</span>${navBtns(sc, "nav-btn")}</div>` : ""}
       </div></div>
 
       <div class="card"><div class="card-body">
