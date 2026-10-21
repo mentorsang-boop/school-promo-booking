@@ -392,8 +392,6 @@
       const days = Math.round((u - f) / 86400000) + 1;
       return `${fmtDay(f)} ~ ${fmtDay(u)} (${days}일) 사이 날짜만 신청받아요.${q.book_from && q.book_until ? "" : " 비워 둔 칸은 자동으로 정해져요 (첫날은 내일, 마지막 날은 오늘부터 " + (Number(q.days_ahead) || 28) + "일 뒤)."}`;
     };
-    let guideOpen = false;
-    try { guideOpen = localStorage.getItem("promo-guide-open") === "1"; } catch (e) { /* 저장소 사용 불가 */ }
     pane.innerHTML = `
       <div class="period-card">
         <div class="period-top"><b>신청 받는 기간</b>
@@ -408,30 +406,7 @@
           <div class="legend" style="margin-top:10px"><span><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--ok);border:0"></i>열린 시간 있음</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--brand);border:0"></i>예약</span><span><i class="lg-out"></i>신청 기간 밖</span></div></div>
         <div class="slots-panel" id="panel"></div>
       </div>
-      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요. 흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</p>
-      <details class="guide" id="guide" ${guideOpen ? "open" : ""}>
-        <summary>홍보 방문 순서와 이 페이지 사용 방법</summary>
-        <div class="guide-body">
-          <div class="guide-col"><h3>방문 전</h3><ol>
-            <li><b>신청 기간 정하기</b><span>위쪽 '신청 받는 기간'에서 첫날과 마지막 날을 골라요.</span></li>
-            <li><b>열린 시간 열기</b><span>'수업시간표로 한 번에 열기'를 쓰거나, 달력에서 날짜를 골라 시간을 눌러 열어요.</span></li>
-            <li><b>학교에 링크 보내기</b><span>'공유' 탭에서 안내문자를 복사하거나 카카오톡으로 보내요. 추천 문구도 있어요.</span></li>
-            <li><b>신청 확인하고 확정 문자 보내기</b><span>신청은 바로 확정돼요. '예약 목록'에서 확인하고 '안내문자'로 확정 문자를 보내요.</span></li>
-            <li><b>학교 미리 알아보기</b><span>'학교 자료'에서 학교 레포트(입교 추이, 재학생, 연락처)를 보고 미팅을 준비해요. 길찾기도 있어요.</span></li>
-          </ol></div>
-          <div class="guide-col"><h3>방문 후</h3><ol class="after" start="6">
-            <li><b>지난 방문 보기</b><span>'방문 학교'의 '지난 방문'에서 다녀온 학교를 다시 볼 수 있어요.</span></li>
-            <li><b>다음 연락 정하기</b><span>'학교 자료'의 구분을 보고 다시 연락할 학교(신경 써야 할 학교 등)를 정해요. 입교 결과는 최고 관리자가 새 엑셀을 올리면 반영돼요.</span></li>
-          </ol>
-          <h3>이 페이지 사용 방법</h3>
-          <ul class="tips">
-            <li>시간 칸을 누르면 열리고, 다시 누르면 닫혀요. 끌어서 여러 칸을 한 번에 바꿀 수 있어요.</li>
-            <li>바꾼 내용은 자동으로 저장돼요.</li>
-            <li>예약된 시간은 닫을 수 없어요. 예약 목록에서 취소하면 다시 열려요.</li>
-            <li>흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</li>
-          </ul></div>
-        </div>
-      </details>`;
+      <p class="hint-line">시간 칸은 ${unit}분 단위예요. 단위는 페이지 설정에서 바꿀 수 있어요. 흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</p>`;
 
     const $cal = pane.querySelector("#cal");
     const $panel = pane.querySelector("#panel");
@@ -517,7 +492,6 @@
       }, 500);
     }
 
-    pane.querySelector("#guide").addEventListener("toggle", (e) => { try { localStorage.setItem("promo-guide-open", e.target.open ? "1" : "0"); } catch (err) { /* 무시 */ } });
     // 신청 기간: 날짜를 고르는 즉시 저장 (페이지 설정에서 옮겨 옴)
     const $from = pane.querySelector("#pr-from"), $until = pane.querySelector("#pr-until");
     const savePeriod = async (from, until, msg) => {
@@ -639,9 +613,9 @@
     const all = await API.listBookings();
     const inMonth = all.filter((b) => T.ms(b.start_at) >= T.ms(m0) && T.ms(b.start_at) < T.ms(m1));
     const confirmed = inMonth.filter((b) => b.status === "confirmed");
-    const upcoming = confirmed.filter((b) => T.ms(b.end_at) >= Date.now());
     if (state.bookDay && (state.bookDay < m0 || state.bookDay >= m1)) state.bookDay = null;
-    const shown = state.bookDay ? inMonth.filter((b) => sameDay(b.start_at, state.bookDay)) : inMonth;
+    const allConfirmed = all.filter((b) => b.status === "confirmed");
+    const shown = state.bookAll ? all : state.bookDay ? inMonth.filter((b) => sameDay(b.start_at, state.bookDay)) : inMonth;
 
     const item = (b) => `<div class="item ${b.status === "cancelled" ? "cancelled" : ""}">
         <div class="when"><b>${fmtDay(b.start_at)}</b><span>${fmtTime(b.start_at)}~${fmtTime(b.end_at)}</span></div>
@@ -654,11 +628,12 @@
     pane.innerHTML = `
       <div class="list-head"><h2 class="section-title">예약 목록</h2>
         <button type="button" class="btn btn-primary btn-sm" id="phone-add">＋ 전화 예약 등록</button>
-        <div class="month-summary"><div class="stat"><b>${confirmed.length}건</b><span>이번 달 확정</span></div><div class="stat"><b>${upcoming.length}건</b><span>남은 방문</span></div><div class="stat"><b>${inMonth.length - confirmed.length}건</b><span>취소</span></div></div></div>
+        <div class="month-summary"><div class="stat"><b>${allConfirmed.length}건</b><span>전체 확정</span></div><div class="stat"><b>${confirmed.length}건</b><span>${m0.getMonth() + 1}월 확정</span></div><div class="stat"><b>${allConfirmed.filter((b) => T.ms(b.end_at) >= Date.now()).length}건</b><span>남은 방문(전체)</span></div><div class="stat"><b>${all.length - allConfirmed.length}건</b><span>취소(전체)</span></div></div></div>
       <div class="stack">
         <div id="bcal" class="bcal"></div>
         <div class="stack">
-          <div class="list-head"><h3>${state.bookDay ? fmtDay(state.bookDay) : `${m0.getMonth() + 1}월 전체`} 예약 ${shown.length}건</h3>${state.bookDay ? `<button class="btn btn-sm" id="all-month">${m0.getMonth() + 1}월 전체 보기</button>` : ""}</div>
+          <div class="seg" role="group" aria-label="보기 범위"><button type="button" aria-selected="${!state.bookAll}" id="v-month">${m0.getMonth() + 1}월 보기</button><button type="button" aria-selected="${!!state.bookAll}" id="v-all">전체 보기</button></div>
+          <div class="list-head"><h3>${state.bookAll ? "전체" : state.bookDay ? fmtDay(state.bookDay) : `${m0.getMonth() + 1}월 전체`} 예약 ${shown.length}건</h3>${state.bookDay && !state.bookAll ? `<button class="btn btn-sm" id="all-month">${m0.getMonth() + 1}월 전체 보기</button>` : ""}</div>
           ${shown.length ? `<div class="list">${shown.map(item).join("")}</div>` : `<div class="empty-pane">${state.bookDay ? "이 날은 예약이 없어요." : "이 달에는 아직 예약이 없어요. 공유 탭에서 링크나 QR을 보내 보세요."}</div>`}
         </div>
       </div>`;
@@ -667,11 +642,13 @@
       const n = confirmed.filter((b) => sameDay(b.start_at, d)).length;
       return { cls: n ? "avail" : "", dots: `<i class="dot"></i>`.repeat(Math.min(n, 4)), sub: n ? `${n}건` : "", aria: n ? `예약 ${n}건` : "" };
     }, state.bookDay);
-    $cal.querySelector("#bm-prev").onclick = () => { state.month = addMonths(m0, -1); state.bookDay = null; paneBookings(pane); };
-    $cal.querySelector("#bm-next").onclick = () => { state.month = addMonths(m0, 1); state.bookDay = null; paneBookings(pane); };
+    $cal.querySelector("#bm-prev").onclick = () => { state.month = addMonths(m0, -1); state.bookDay = null; state.bookAll = false; paneBookings(pane); };
+    $cal.querySelector("#bm-next").onclick = () => { state.month = addMonths(m0, 1); state.bookDay = null; state.bookAll = false; paneBookings(pane); };
     $cal.querySelectorAll(".day[data-day]").forEach((b) => {
-      b.onclick = () => { const d = new Date(b.dataset.day); state.bookDay = state.bookDay && sameDay(state.bookDay, d) ? null : d; paneBookings(pane); };
+      b.onclick = () => { const d = new Date(b.dataset.day); state.bookAll = false; state.bookDay = state.bookDay && sameDay(state.bookDay, d) ? null : d; paneBookings(pane); };
     });
+    pane.querySelector("#v-month").onclick = () => { state.bookAll = false; paneBookings(pane); };
+    pane.querySelector("#v-all").onclick = () => { state.bookAll = true; paneBookings(pane); };
     const am = pane.querySelector("#all-month");
     if (am) am.onclick = () => { state.bookDay = null; paneBookings(pane); };
 
@@ -736,7 +713,7 @@
       try {
         const b = await API.addBooking(s.toISOString(), en.toISOString(), { school: v("ph-school"), contact_name: v("ph-name"), phone: v("ph-phone"), target: v("ph-target"), place: v("ph-place"), request: v("ph-req") });
         closeModal(); toast("예약을 등록했어요.");
-        state.month = monthStart(s); state.bookDay = dayStart(s);
+        state.month = monthStart(s); state.bookDay = dayStart(s); state.bookAll = false;
         await paneBookings(pane);
         openModal(`<div class="card-body"><h2 class="section-title">${esc(b.school)} 안내문자</h2>
           <p class="small muted">전화 받은 선생님께 확정 문자를 보내 드리세요.</p>
@@ -806,7 +783,7 @@
   }
 
   // 페이지 설정 (탭으로 분류)
-  const SET_TABS = [["basic", "기본 정보"], ["time", "신청 시간"], ["message", "안내문자"], ["address", "신청 주소"], ["account", "내 계정"]];
+  const SET_TABS = [["basic", "기본 정보"], ["time", "신청 시간"], ["message", "안내문자"], ["address", "신청 주소"], ["account", "내 계정"], ["guide", "사용 방법"]];
   function paneSettings(pane) {
     const p = state.me;
     const opt = (vals, cur, fmt) => vals.map((v) => `<option value="${v}" ${String(v) === String(cur) ? "selected" : ""}>${fmt(v)}</option>`).join("");
@@ -845,13 +822,35 @@
           <div class="field"><label for="f-pw2">새 비밀번호 확인</label><input id="f-pw2" type="password" autocomplete="new-password"></div>
           <div class="form-actions"><button class="btn btn-primary" type="button" id="pw-save">비밀번호 바꾸기</button></div>
         </section>
+        <section data-sec="guide" class="guide"><h3 class="guide-title">홍보 방문 순서와 이 페이지 사용 방법</h3>
+          <div class="guide-body">
+          <div class="guide-col"><h3>방문 전</h3><ol>
+            <li><b>신청 기간 정하기</b><span>'열린 시간' 탭 위쪽 '신청 받는 기간'에서 첫날과 마지막 날을 골라요.</span></li>
+            <li><b>열린 시간 열기</b><span>'수업시간표로 한 번에 열기'를 쓰거나, 달력에서 날짜를 골라 시간을 눌러 열어요.</span></li>
+            <li><b>학교에 링크 보내기</b><span>'공유' 탭에서 안내문자를 복사하거나 카카오톡으로 보내요. 추천 문구도 있어요.</span></li>
+            <li><b>신청 확인하고 확정 문자 보내기</b><span>신청은 바로 확정돼요. '예약 목록'에서 확인하고 '안내문자'로 확정 문자를 보내요.</span></li>
+            <li><b>학교 미리 알아보기</b><span>'학교 자료'에서 학교 레포트(입교 추이, 재학생, 연락처)를 보고 미팅을 준비해요. 길찾기도 있어요.</span></li>
+          </ol></div>
+          <div class="guide-col"><h3>방문 후</h3><ol class="after" start="6">
+            <li><b>지난 방문 보기</b><span>'방문 학교'의 '지난 방문'에서 다녀온 학교를 다시 볼 수 있어요.</span></li>
+            <li><b>다음 연락 정하기</b><span>'학교 자료'의 구분을 보고 다시 연락할 학교(신경 써야 할 학교 등)를 정해요. 입교 결과는 최고 관리자가 새 엑셀을 올리면 반영돼요.</span></li>
+          </ol>
+          <h3>이 페이지 사용 방법</h3>
+          <ul class="tips">
+            <li>시간 칸을 누르면 열리고, 다시 누르면 닫혀요. 끌어서 여러 칸을 한 번에 바꿀 수 있어요.</li>
+            <li>바꾼 내용은 자동으로 저장돼요.</li>
+            <li>예약된 시간은 닫을 수 없어요. 예약 목록에서 취소하면 다시 열려요.</li>
+            <li>흐리게 보이는 날짜는 신청 기간 밖이라 신청을 받지 않아요.</li>
+          </ul></div>
+        </div>
+        </section>
         <p class="error" id="set-err" hidden></p>
         <div class="form-actions" id="set-save"><button class="btn btn-primary" type="submit">저장</button></div>
       </form>`;
     const show = () => {
       pane.querySelectorAll("[data-sec]").forEach((s) => { s.hidden = s.dataset.sec !== state.settingsTab; });
       pane.querySelectorAll("[data-st]").forEach((b) => b.setAttribute("aria-selected", b.dataset.st === state.settingsTab));
-      pane.querySelector("#set-save").hidden = state.settingsTab === "account";
+      pane.querySelector("#set-save").hidden = state.settingsTab === "account" || state.settingsTab === "guide";
     };
     pane.querySelector("#pw-save").onclick = async () => {
       const err = pane.querySelector("#set-err");

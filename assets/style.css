@@ -475,3 +475,5 @@ table.data tr:last-child td { border-bottom: 0; }
 /* v3.8 전화 예약 등록 */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 #phone-add { margin-left: auto; }
+.guide-title { margin: 0; padding: 14px 14px 8px; font-size: var(--step-0); color: var(--brand-900); }
+.guide[hidden] { display: none; }
