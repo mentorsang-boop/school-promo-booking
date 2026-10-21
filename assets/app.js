@@ -267,14 +267,14 @@
   }
 
   // ---------- 내 페이지 ----------
-  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["schools", "방문 학교"], ["share", "공유"], ["settings", "페이지 설정"]];
+  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["schools", "방문 학교"], ["library", "학교 자료"], ["share", "공유"], ["settings", "페이지 설정"]];
 
   async function viewApp(tab) {
     if (!state.me) { location.hash = "#/login"; return; }
     if (!state.me.active) { simpleCard("사용이 멈춘 계정이에요", `<p class="muted">홍보 담당 부서에 문의해 주세요.</p>`); return; }
     const cur = TABS.some(([k]) => k === tab) ? tab : "open";
     chrome(`<div class="wrap page">
-      <div class="page-head"><div><h1>${esc(state.me.name)} 선생님의 홍보 예약</h1><p>신청 페이지: <a href="#/r/${esc(state.me.slug)}">/r/${esc(state.me.slug)}</a></p></div></div>
+      <div class="page-head"><div><h1>${esc(state.me.name)} 선생님의 홍보 예약</h1></div></div>
       <div class="card"><nav class="tabs" role="tablist" aria-label="내 페이지 메뉴" style="padding:0 12px">
         ${TABS.map(([k, l]) => `<button role="tab" aria-selected="${k === cur}" data-tab="${k}">${l}</button>`).join("")}
       </nav><div class="card-body" id="pane"></div></div></div>`);
@@ -284,6 +284,7 @@
       if (cur === "open") await paneOpen(pane);
       else if (cur === "bookings") await paneBookings(pane);
       else if (cur === "schools") await paneSchools(pane);
+      else if (cur === "library") await paneLibrary(pane);
       else if (cur === "share") paneShare(pane);
       else paneSettings(pane);
     } catch (e) {
@@ -713,6 +714,18 @@
     return n === 0 ? "오늘" : n > 0 ? `D-${n}` : "지남";
   };
   const totalIntake = (sc) => (sc.intake || []).reduce((n, x) => n + (Number(x.count) || 0), 0);
+  // 입교생 수 추이: 최근 해와 그 전 해 비교 (증가/감소/변화 없음/입교 없음)
+  function intakeTrend(sc) {
+    const xs = (sc.intake || []).filter((x) => x.count != null);
+    if (!xs.length) return null;
+    if (xs.every((x) => !x.count)) return { cls: "none", label: "입교 없음", text: `최근 ${xs.length}년 동안 입교한 학생이 없어요.` };
+    if (xs.length < 2) return null;
+    const a = xs[xs.length - 2], b = xs[xs.length - 1], d = b.count - a.count;
+    const flow = xs.slice(-3).map((x) => `${String(x.year).slice(2)}년 ${x.count}명`).join(" → ");
+    if (d > 0) return { cls: "up", label: `▲ ${d}명 증가`, text: `${flow}, 전년보다 <b>${d}명 증가</b>했어요.` };
+    if (d < 0) return { cls: "down", label: `▼ ${-d}명 감소`, text: `${flow}, 전년보다 <b>${-d}명 감소</b>했어요.` };
+    return { cls: "same", label: "변화 없음", text: `${flow}, 전년과 <b>같아요</b>.` };
+  }
   const lastIntake = (sc) => { const xs = (sc.intake || []).filter((x) => x.count != null); return xs[xs.length - 1] || null; };
   const schoolKeys = (sc) => {
     const out = new Set([sc.name, sc.short]);
@@ -758,6 +771,36 @@
       </div>
       <div class="sc-list" id="sc-list"></div>`;
     pane.querySelectorAll("[data-sf]").forEach((x) => { x.onclick = () => { state.schoolFilter = x.dataset.sf; draw(); }; });
+    state.schoolBack = "schools";
+    draw();
+  }
+
+  // 학교 자료: 엑셀로 올린 전체 학교를 검색해서 레포트로 보기
+  async function paneLibrary(pane) {
+    pane.innerHTML = `<p class="muted">불러오는 중…</p>`;
+    const list = await API.listSchools();
+    state.schoolBack = "library";
+    const norm = (t) => String(t || "").replace(/\s/g, "").toLowerCase();
+    const districts = [...new Set(list.map((sc) => sc.district).filter(Boolean))].sort();
+    const draw = () => {
+      const q = norm(state.libQuery), dq = state.libDistrict || "";
+      const xs = list.filter((sc) => (!dq || sc.district === dq) && (!q || norm([sc.name, sc.short, sc.district, sc.found, sc.gender, sc.kind].join(" ")).includes(q)));
+      pane.querySelector("#lib-count").textContent = `${xs.length}개 학교`;
+      pane.querySelector("#lib-list").innerHTML = xs.length ? xs.map((sc) => {
+        const li = lastIntake(sc), tr = intakeTrend(sc);
+        return `<a class="sc-card" href="#/school/${sc.no}"><div class="sc-top"><strong>${esc(sc.short || sc.name)}</strong><span class="muted small">${esc([sc.district, sc.found, sc.gender].filter(Boolean).join(" · "))}</span></div>
+          <div class="sc-nums"><span>재학생 <b>${(sc.current || []).length}</b>명</span><span>${li ? `${li.year} 입교 <b>${li.count}</b>명` : "입교 기록 없음"}</span>${tr ? `<span class="trend ${tr.cls}">${tr.label}</span>` : ""}</div></a>`;
+      }).join("") : `<div class="empty-pane">${list.length ? "찾는 학교가 없어요. 이름 일부만 넣어 보세요." : "학교 자료가 아직 없어요. 관리자가 엑셀을 올리면 여기에 보여요."}</div>`;
+      pane.querySelectorAll("[data-dq]").forEach((x) => x.setAttribute("aria-selected", x.dataset.dq === dq));
+    };
+    pane.innerHTML = `<div class="list-head"><div><h2 class="section-title">학교 자료</h2><p class="hint-line">학교 이름이나 지역으로 찾아보세요. 학교를 누르면 레포트가 열려요.</p></div></div>
+      <div class="field"><input id="lib-q" type="search" placeholder="학교 이름 검색 (예: 부평, 대건)" value="${esc(state.libQuery || "")}" aria-label="학교 이름 검색"></div>
+      ${districts.length > 1 ? `<div class="subtabs" role="tablist"><button type="button" role="tab" data-dq="">전체</button>${districts.map((d) => `<button type="button" role="tab" data-dq="${esc(d)}">${esc(d)}</button>`).join("")}</div>` : ""}
+      <p class="muted small" id="lib-count"></p>
+      <div class="sc-list" id="lib-list"></div>`;
+    const qi = pane.querySelector("#lib-q");
+    qi.oninput = () => { state.libQuery = qi.value; draw(); };
+    pane.querySelectorAll("[data-dq]").forEach((x) => { x.onclick = () => { state.libDistrict = x.dataset.dq; draw(); }; });
     draw();
   }
 
@@ -770,8 +813,7 @@
     const sc = list.find((x) => String(x.no) === String(no));
     if (!sc) { simpleCard("학교를 찾지 못했어요", `<p class="muted"><a href="#/app/schools">방문 학교 목록</a>으로 돌아가 주세요.</p>`); return; }
     const myBk = bookingsFor(sc, bookings, list);
-    // 선생님은 내 예약이 있는 학교만 볼 수 있음 (관리자는 전체)
-    if (!myBk.length && state.me.role !== "admin") { simpleCard("예약된 학교만 볼 수 있어요", `<p class="muted"><a href="#/app/schools">방문 학교 목록</a>으로 돌아가 주세요.</p>`); return; }
+    const back = state.schoolBack === "library" ? ["#/app/library", "학교 자료"] : ["#/app/schools", "방문 학교"];
     const intake = (sc.intake || []).filter((x) => x.count != null);
     const max = Math.max(1, ...intake.map((x) => x.count));
     const total = totalIntake(sc), li = lastIntake(sc);
@@ -782,6 +824,8 @@
     // 미팅 때 꺼낼 이야기
     const points = [];
     if (li) points.push(`${li.year}학년도에 <b>${li.count}명</b>이 입교했어요${intake.length > 1 ? ` (최근 ${intake.length}년 평균 ${avg.toFixed(1)}명${li.count > avg ? ", 평균보다 많음" : li.count < avg ? ", 평균보다 적음" : ""})` : ""}.`);
+    const tr = intakeTrend(sc);
+    points.push(`입교생 추이: ${tr ? tr.text : "비교할 입교 기록이 없어요."}`);
     if ((sc.current || []).length) points.push(`이 학교 출신 재학생이 <b>${sc.current.length}명</b> 있어요: ${Object.entries(depts).map(([d, ns]) => `${esc(d)} ${ns.length}명`).join(", ")}.`);
     else points.push(`현재 이 학교 출신 재학생은 없어요. 학과별 실제 수업 모습과 진로 사례 위주로 소개해 보세요.`);
     if (sc.consign_hope) points.push(`위탁교육 희망 학생 수: <b>${esc(sc.consign_hope)}</b>`);
@@ -790,7 +834,7 @@
     if (sc.classes || sc.students) points.push(`2학년은 ${sc.classes ?? "-"}학급 ${sc.students ?? "-"}명이에요.`);
 
     chrome(`<div class="wrap page sc-detail">
-      <a class="back" href="#/app/schools">‹ 방문 학교</a>
+      <a class="back" href="${back[0]}">‹ ${back[1]}</a>
       <div class="sc-hero card"><div class="card-body">
         <div><h1>${esc(sc.short || sc.name)}</h1><p class="muted">${esc(sc.name)}</p></div>
         <div class="row">${[sc.district, sc.found, sc.gender, sc.kind].filter(Boolean).map((t) => `<span class="badge">${esc(t)}</span>`).join("")}</div>
@@ -868,24 +912,37 @@
   async function viewAdmin() {
     if (!state.me) { location.hash = "#/login/admin"; return; }
     if (state.me.role !== "admin") { location.hash = "#/app"; return; }
-    chrome(`<div class="wrap page"><div class="page-head"><div><h1>관리</h1><p>선생님 계정과 전체 예약을 관리합니다.</p></div></div><div id="admin" class="stack"><p class="muted">불러오는 중…</p></div></div>`);
+    chrome(`<div class="wrap page"><div class="page-head"><div><h1>관리</h1><p>${state.me.owner ? "선생님 계정과 전체 예약을 관리합니다." : "가입 안내와 가입한 선생님 목록을 볼 수 있어요."}</p></div></div><div id="admin" class="stack"><p class="muted">불러오는 중…</p></div></div>`);
     const box = document.getElementById("admin");
     const draw = async () => {
-      const [users, all, schools, code] = await Promise.all([API.listUsers(), API.listAllBookings(), API.listSchools().catch(() => []), API.getSignupCode().catch(() => "")]);
+      const owner = !!state.me.owner;
+      const [users, all, schools, code] = await Promise.all([API.listUsers(owner), owner ? API.listAllBookings() : [], owner ? API.listSchools().catch(() => []) : [], API.getSignupCode().catch(() => "")]);
       const schoolCount = schools.length;
       const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
-      box.innerHTML = `
-        <div class="card"><div class="card-body">
+      const roleName = (u) => (u.owner ? "최고 관리자" : u.role === "admin" ? "관리자" : "선생님");
+      const codeCard = `<div class="card"><div class="card-body">
           <h2 class="section-title">가입 코드</h2>
-          <p class="hint-line">선생님은 '계정 만들기'에서 이 코드를 넣어야 가입할 수 있어요. 코드를 바꾸면 이전 코드로는 더 이상 가입할 수 없어요 (이미 가입한 계정은 그대로).</p>
+          <p class="hint-line">${owner ? "선생님은 '계정 만들기'에서 이 코드를 넣어야 가입할 수 있어요. 코드를 바꾸면 이전 코드로는 더 이상 가입할 수 없어요 (이미 가입한 계정은 그대로)." : "가입 안내를 복사해서 선생님께 보내 주세요. 코드는 최고 관리자만 바꿀 수 있어요."}</p>
           <div class="row"><span class="signup-code" id="code-show">${esc(code || "없음")}</span>
-            <button class="btn btn-sm" id="code-copy">가입 안내 복사</button><button class="btn btn-sm" id="code-new">새 코드 만들기</button></div>
-        </div></div>
+            <button class="btn btn-sm" id="code-copy">가입 안내 복사</button>${owner ? `<button class="btn btn-sm" id="code-new">새 코드 만들기</button>` : ""}</div>
+        </div></div>`;
+      if (!owner) {
+        box.innerHTML = `${codeCard}
+          <div class="card"><div class="card-body">
+            <h2 class="section-title">가입한 선생님 ${users.length}명</h2>
+            <div class="table-scroll"><table class="data" style="min-width:0"><thead><tr><th>이름</th><th>권한</th><th>상태</th></tr></thead><tbody>
+              ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${roleName(u)}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td></tr>`).join("")}
+            </tbody></table></div>
+          </div></div>`;
+        box.querySelector("#code-copy").onclick = () => copyText(`[${SCHOOL} 홍보 예약] 선생님 가입 안내\n주소: ${location.origin}${location.pathname}#/signup\n가입 코드: ${code}`, "가입 안내를 복사했어요.");
+        return;
+      }
+      box.innerHTML = `${codeCard}
         <div class="card"><div class="card-body">
           <h2 class="section-title">선생님 ${users.length}명</h2><p class="hint-line">'관리자로 지정'을 누르면 그 선생님도 이 관리 화면을 쓸 수 있어요. 모르는 계정은 '사용 멈춤'이나 삭제로 정리해 주세요.</p>
           <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>아이디</th><th>신청 페이지</th><th>권한</th><th>상태</th><th></th></tr></thead><tbody>
-            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.login_id || "")}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.role === "admin" ? "관리자" : "선생님"}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
-              <td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm" data-reset="${u.id}">비밀번호 초기화</button>${u.id === state.me.id ? "" : `<button class="btn btn-sm ${u.role === "admin" ? "" : "btn-soft"}" data-role="${u.id}" data-to="${u.role === "admin" ? "user" : "admin"}">${u.role === "admin" ? "관리자 해제" : "관리자로 지정"}</button><button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button><button class="btn btn-sm btn-danger" data-del="${u.id}">삭제</button>`}</div></td></tr>`).join("")}
+            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.login_id || "")}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${roleName(u)}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
+              <td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm" data-reset="${u.id}">비밀번호 초기화</button>${u.id === state.me.id || u.owner ? "" : `<button class="btn btn-sm ${u.role === "admin" ? "" : "btn-soft"}" data-role="${u.id}" data-to="${u.role === "admin" ? "user" : "admin"}">${u.role === "admin" ? "관리자 해제" : "관리자로 지정"}</button><button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button><button class="btn btn-sm btn-danger" data-del="${u.id}">삭제</button>`}</div></td></tr>`).join("")}
           </tbody></table></div>
         </div></div>
         <div class="card"><div class="card-body">

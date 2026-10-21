@@ -56,7 +56,7 @@
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v3.4";
+    const KEY = "promo-booking-demo-v3.5";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
@@ -83,7 +83,7 @@
       });
       const profiles = [
         base("u-admin", {
-          login_id: "admin", email: "admin@isg-promo.local", name: "미카", role: "admin", slug: "mika",
+          login_id: "admin", email: "admin@isg-promo.local", name: "미카", role: "admin", owner: true, slug: "mika",
           page_title: "인천산업정보학교 고교 방문 홍보 신청", page_intro: "원하시는 날짜와 시간을 골라 주세요.\n방문 홍보는 약 1시간 진행됩니다.",
           contact_phone: "010-1234-5678", default_place: "",
         }),
@@ -92,6 +92,10 @@
           page_title: "인천산업정보학교 고교 방문 홍보 신청",
           page_intro: "위탁 교육과정과 학과 소개를 위해 고등학교로 직접 찾아갑니다.\n편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.",
           contact_phone: "010-2345-6789", default_place: "학교 시청각실",
+        }),
+        base("u-lee", {
+          login_id: "lee", email: "lee@isg-promo.local", name: "이관리", role: "admin", slug: "lee",
+          page_title: "인천산업정보학교 고교 방문 홍보 신청", page_intro: "", contact_phone: "010-3456-7890", default_place: "",
         }),
       ];
       const open = [];
@@ -170,6 +174,7 @@
     const me = () => load().profiles.find((p) => p.id === sessionId()) || null;
     const need = () => { const p = me(); if (!p) throw new Error("로그인이 필요해요."); return p; };
     const needAdmin = () => { const p = need(); if (p.role !== "admin") throw new Error("관리자만 할 수 있어요."); return p; };
+    const needOwner = () => { const p = needAdmin(); if (!p.owner) throw new Error("최고 관리자만 할 수 있어요."); return p; };
     const inRange = (x, from, to) => T.overlaps(x.start_at, x.end_at, from, to);
     const wait = (v) => new Promise((r) => setTimeout(() => r(v), 120));
 
@@ -254,13 +259,13 @@
         save();
       },
       async resetPassword(id, password) {
-        needAdmin();
+        needOwner();
         const u = load().profiles.find((p) => p.id === id);
         if (!u) throw new Error("계정을 찾지 못했어요.");
         u.password = password; save();
       },
       async deleteUser(id) {
-        const a = needAdmin();
+        const a = needOwner();
         if (id === a.id) throw new Error("내 계정은 삭제할 수 없어요.");
         const db = load();
         db.profiles = db.profiles.filter((p) => p.id !== id);
@@ -268,13 +273,14 @@
         db.bookings = db.bookings.filter((x) => x.user_id !== id);
         save();
       },
-      async listUsers() { needAdmin(); return load().profiles.slice(); },
+      // 다른 관리자는 이름·권한·상태만 받음
+      async listUsers() { const a = needAdmin(); const xs = load().profiles.slice(); return a.owner ? xs : xs.map((p) => pick(p, ["id", "name", "role", "owner", "active"])); },
       async getSignupCode() { needAdmin(); return load().signup_code || "123456"; },
-      async setSignupCode(code) { needAdmin(); load().signup_code = code; save(); },
-      async setUserRole(id, role) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.role = role; save(); } },
-      async setUserActive(id, active) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.active = active; save(); } },
+      async setSignupCode(code) { needOwner(); load().signup_code = code; save(); },
+      async setUserRole(id, role) { needOwner(); const u = load().profiles.find((p) => p.id === id); if (u && !u.owner) { u.role = role; save(); } },
+      async setUserActive(id, active) { needOwner(); const u = load().profiles.find((p) => p.id === id); if (u) { u.active = active; save(); } },
       async listAllBookings() {
-        needAdmin();
+        needOwner();
         const db = load();
         return db.bookings
           .map((b) => ({ ...b, owner_name: (db.profiles.find((p) => p.id === b.user_id) || {}).name || "" }))
@@ -282,7 +288,7 @@
       },
       // 방문 학교
       async listSchools() { need(); return (load().schools || []).slice(); },
-      async replaceSchools(list) { needAdmin(); load().schools = list; save(); },
+      async replaceSchools(list) { needOwner(); load().schools = list; save(); },
       // 신청자(로그인 없음)
       async publicPage(slug) {
         const p = load().profiles.find((x) => x.slug === slug && x.active);
@@ -418,8 +424,9 @@
       async createUser(fields) { await fn({ action: "create_user", ...fields }, "admin-api"); },
       async resetPassword(user_id, password) { await fn({ action: "reset_password", user_id, password }, "admin-api"); },
       async deleteUser(user_id) { await fn({ action: "delete_user", user_id }, "admin-api"); },
-      async listUsers() {
-        const { data, error } = await sb.from("profiles").select("*").order("created_at");
+      // 최고 관리자는 전체, 다른 관리자는 이름·권한·상태만 (admin_basic_users)
+      async listUsers(owner) {
+        const { data, error } = owner ? await sb.from("profiles").select("*").order("created_at") : await sb.rpc("admin_basic_users");
         fail(error);
         return data;
       },

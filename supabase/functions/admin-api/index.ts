@@ -2,7 +2,7 @@
 // - status: 관리자 계정이 아직 없는지 (처음 설정 화면용)
 // - setup: 관리자 계정이 하나도 없을 때만 첫 관리자 만들기
 // - signup: 선생님이 가입 코드를 넣고 직접 가입 (코드는 관리 화면에서 확인·변경)
-// - create_user / reset_password / delete_user: 관리자만
+// - create_user / reset_password / delete_user: 최고 관리자만
 // 아이디는 내부적으로 `{아이디}@isg-promo.local` 이메일로 저장합니다 (메일은 보내지 않음).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -85,12 +85,12 @@ Deno.serve(async (req) => {
     return r.error ? fail(r.error) : json({ ok: true });
   }
 
-  // 여기부터는 관리자만
+  // 여기부터는 최고 관리자만 (다른 관리자는 가입자 목록 보기만 가능)
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   const { data: u } = await db.auth.getUser(token);
   if (!u?.user) return fail("로그인이 필요해요.", 401);
-  const { data: me } = await db.from("profiles").select("role, active").eq("id", u.user.id).maybeSingle();
-  if (!me || me.role !== "admin" || !me.active) return fail("관리자만 할 수 있어요.", 403);
+  const { data: me } = await db.from("profiles").select("role, active, owner").eq("id", u.user.id).maybeSingle();
+  if (!me || me.role !== "admin" || !me.owner || !me.active) return fail("최고 관리자만 할 수 있어요.", 403);
 
   if (action === "create_user") {
     const role = body.role === "admin" ? "admin" : "user";

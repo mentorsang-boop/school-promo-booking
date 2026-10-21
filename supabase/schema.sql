@@ -229,3 +229,43 @@ insert into public.app_settings (key, value)
 values ('signup_code', lpad((floor(random() * 1000000))::int::text, 6, '0'))
 on conflict (key) do nothing;
 alter table public.profiles add column if not exists pending boolean not null default false; -- 쓰지 않음
+
+-- ---------- v3.5: 최고 관리자 (가입 코드 변경·계정 관리·전체 예약은 최고 관리자만) ----------
+alter table public.profiles add column if not exists owner boolean not null default false;
+-- update public.profiles set owner = true where login_id = '최고 관리자 아이디';
+create or replace function public.is_owner()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin' and owner and active);
+$$;
+create or replace function public.profiles_guard()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if current_user = 'authenticated' and not public.is_owner() then
+    new.role := old.role;
+    new.active := old.active;
+    new.pending := old.pending;
+    new.email := old.email;
+    new.login_id := old.login_id;
+    new.google_connected := old.google_connected;
+  end if;
+  if current_user = 'authenticated' then new.owner := old.owner; end if;
+  new.id := old.id;
+  return new;
+end;
+$$;
+alter policy "read own profile or admin" on public.profiles using (id = (select auth.uid()) or (select public.is_owner()));
+alter policy "update own profile or admin" on public.profiles using (id = (select auth.uid()) or (select public.is_owner())) with check (id = (select auth.uid()) or (select public.is_owner()));
+alter policy "read own bookings or admin" on public.bookings using (user_id = (select auth.uid()) or (select public.is_owner()));
+alter policy "update own bookings or admin" on public.bookings using (user_id = (select auth.uid()) or (select public.is_owner())) with check (user_id = (select auth.uid()) or (select public.is_owner()));
+alter policy "admin reads open slots" on public.open_slots using ((select public.is_owner()));
+alter policy "admin manages visit schools" on public.visit_schools using ((select public.is_owner())) with check ((select public.is_owner()));
+alter policy "admin manages settings" on public.app_settings using ((select public.is_owner())) with check ((select public.is_owner()));
+create policy "admins read settings" on public.app_settings for select to authenticated using ((select public.is_admin()));
+-- 다른 관리자용 가입자 목록 (이름·권한·상태만)
+create or replace function public.admin_basic_users()
+returns table(id uuid, name text, role text, owner boolean, active boolean)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.is_admin() then raise exception '관리자만 할 수 있어요.'; end if;
+  return query select p.id, p.name, p.role, p.owner, p.active from public.profiles p order by p.created_at;
+end $$;

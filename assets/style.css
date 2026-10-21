@@ -383,3 +383,9 @@ table.data tr:last-child td { border-bottom: 0; }
 .sc-contact .role { font-size: 0.75rem; color: var(--ink-2); font-weight: 600; }
 .sc-contact .line { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .signup-code { font-size: var(--step-2); font-weight: 800; letter-spacing: .12em; color: var(--brand-900); background: var(--brand-50); border-radius: var(--radius-sm); padding: 4px 14px; font-variant-numeric: tabular-nums; }
+
+/* 학교 자료: 입교생 추이 표시 */
+.trend { font-weight: 600; }
+.trend.up { color: var(--ok); }
+.trend.down { color: var(--danger); }
+.trend.same, .trend.none { color: var(--ink-2); }
