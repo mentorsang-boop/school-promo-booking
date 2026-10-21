@@ -56,7 +56,7 @@
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v3.2";
+    const KEY = "promo-booking-demo-v3.3";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
@@ -118,7 +118,32 @@
           place: "진로상담실", request: "", status: "confirmed", created_at: new Date().toISOString(),
         },
       ];
-      return { profiles, open, bookings };
+      // 방문 학교 예시 (이름·연락처는 모두 가짜)
+      const sc = (no, name, district, found, gender, teacher, intake, current, extra) => ({
+        no, name, short: name.replace(/여자고등학교$/, "여고").replace(/고등학교$/, "고"), kind: "일반", district, found, gender,
+        classes: 8 + (no % 4), students: 200 + no * 17,
+        intake: intake.map((count, k) => ({ year: 2019 + k, count })),
+        current, promo_teacher: teacher,
+        contacts: [
+          { role: "위탁 담당", lines: [{ text: `홍담당(032-000-${1000 + no})`, phones: [`032-000-${1000 + no}`] }] },
+          { role: "2학년 부장", lines: [{ text: `이부장(032-000-${2000 + no})`, phones: [`032-000-${2000 + no}`] }] },
+          { role: "진로진학 담당", lines: [{ text: `박진로(032-000-${3000 + no})`, phones: [`032-000-${3000 + no}`] }] },
+        ],
+        consign_hope: "", our_hope: "", briefing: "", visits: [], ...extra,
+      });
+      const day = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return d.toISOString().slice(0, 10); };
+      const schools = [
+        sc(1, "한빛고등학교", "서구", "공립", "공학", "김홍보", [3, 5, 2, 4, 6, 3, 5, 8],
+          [{ name: "학생가", dept: "그래픽디자인과" }, { name: "학생나", dept: "뷰티아트과" }, { name: "학생다", dept: "뷰티아트과" }, { name: "학생라", dept: "호텔조리과 카페" }],
+          { visits: [{ date: day(firstWeekday), note: "김홍보", source: "현황" }], briefing: "교내 설명회 희망 15:40~" }),
+        sc(2, "새솔고등학교", "연수구", "사립", "남", "김홍보", [1, 0, 2, 1, 0, 3, 2, 4],
+          [{ name: "학생마", dept: "호텔조리과 쉐프" }, { name: "학생바", dept: "펫케어과" }],
+          { visits: [{ date: day(second), note: "김홍보", source: "달력" }] }),
+        sc(3, "푸른여자고등학교", "부평구", "공립", "여", "김홍보", [2, 3, 1, 0, 4, 2, 6, 3], [{ name: "학생사", dept: "사진영상콘텐츠과" }], {}),
+        sc(4, "바다고등학교", "중구", "공립", "공학", "미카", [0, 1, 0, 2, 1, 0, 1, 2], [], {}),
+        sc(5, "솔빛고등학교", "남동구", "사립", "공학", "", [4, 2, 3, 1, 2, 1, 0, 1], [], {}),
+      ];
+      return { profiles, open, bookings, schools };
     }
 
     function load() {
@@ -251,6 +276,9 @@
           .map((b) => ({ ...b, owner_name: (db.profiles.find((p) => p.id === b.user_id) || {}).name || "" }))
           .sort((a, b) => T.ms(a.start_at) - T.ms(b.start_at));
       },
+      // 방문 학교
+      async listSchools() { need(); return (load().schools || []).slice(); },
+      async replaceSchools(list) { needAdmin(); load().schools = list; save(); },
       // 신청자(로그인 없음)
       async publicPage(slug) {
         const p = load().profiles.find((x) => x.slug === slug && x.active);
@@ -399,6 +427,16 @@
         const { data, error } = await sb.from("bookings").select("*, profiles(name)").order("start_at");
         fail(error);
         return data.map((b) => ({ ...b, owner_name: b.profiles ? b.profiles.name : "" }));
+      },
+      async listSchools() {
+        const { data, error } = await sb.from("visit_schools").select("no, data, updated_at").order("no");
+        fail(error);
+        return data.map((r) => ({ ...r.data, updated_at: r.updated_at }));
+      },
+      async replaceSchools(list) {
+        fail((await sb.from("visit_schools").delete().gte("no", -1000000)).error);
+        const rows = list.map((s) => ({ no: s.no, name: s.name, promo_teacher: s.promo_teacher || "", data: s }));
+        for (let i = 0; i < rows.length; i += 50) fail((await sb.from("visit_schools").insert(rows.slice(i, i + 50))).error);
       },
       async publicPage(slug) {
         const r = await fn({ action: "page", slug });

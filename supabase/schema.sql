@@ -197,3 +197,21 @@ alter table public.profiles
   add column if not exists book_from date,
   add column if not exists book_until date,
   add column if not exists class_times jsonb not null default '[]'::jsonb; -- [{ wd: 1~5, s: "09:00", e: "09:50" }]
+
+-- ---------- v3.3: 방문 학교 (관리자가 엑셀로 올림, 로그인한 선생님만 읽음) ----------
+create table if not exists public.visit_schools (
+  no int primary key,
+  name text not null,
+  promo_teacher text not null default '',
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.visit_schools enable row level security;
+create or replace function public.is_active_user()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and active);
+$$;
+create policy "active users read visit schools" on public.visit_schools
+  for select to authenticated using ((select public.is_active_user()));
+create policy "admin manages visit schools" on public.visit_schools
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));

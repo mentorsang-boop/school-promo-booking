@@ -4,6 +4,6 @@
 window.APP_CONFIG = {
   SUPABASE_URL: "https://prsldqlwyohsqmzzuiji.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf",
-  VERSION: "3.2",
-  RELEASED: "2026.10.19",
+  VERSION: "3.3",
+  RELEASED: "2026.10.21",
 };

@@ -8,7 +8,7 @@
 - **사용자**(선생님)는 로그인 화면의 "계정 만들기"에서 직접 가입합니다.
 - **관리자**는 선생님 비밀번호를 초기화하거나 계정을 멈추고, 전체 예약을 봅니다.
 
-현재 버전: **v3.2** (변경 내역은 [CHANGELOG.md](CHANGELOG.md))
+현재 버전: **v3.3** (변경 내역은 [CHANGELOG.md](CHANGELOG.md))
 
 ## 주소
 
@@ -25,6 +25,7 @@
 | `assets/style.css` | 디자인 (학교 남색 #2C479D 기준) |
 | `assets/logo*.svg`, `assets/emblem*.svg` | 학교 로고 (원본 AI 파일에서 추출) |
 | `assets/app.js` | 화면과 라우팅 |
+| `assets/schools-import.js` | 방문 홍보 배정 엑셀을 학교 목록으로 바꾸는 코드 |
 | `assets/data.js` | 데이터 계층 (Supabase / 체험 모드) |
 | `assets/config.js` | Supabase 주소와 공개 키, 버전 |
 | `supabase/schema.sql` | 테이블, 접근 규칙(RLS), DB 함수 |

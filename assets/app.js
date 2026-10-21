@@ -22,6 +22,8 @@
     day: null, // 내 페이지에서 고른 날
     bookDay: null, // 예약 목록에서 고른 날 (없으면 달 전체)
     settingsTab: "basic",
+    schoolFilter: null, // mine | visit | all
+    schoolQuery: "",
     pubMonth: null,
     lastBooking: null,
   };
@@ -265,7 +267,7 @@
   }
 
   // ---------- 내 페이지 ----------
-  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["share", "공유"], ["settings", "페이지 설정"]];
+  const TABS = [["open", "열린 시간"], ["bookings", "예약 목록"], ["schools", "방문 학교"], ["share", "공유"], ["settings", "페이지 설정"]];
 
   async function viewApp(tab) {
     if (!state.me) { location.hash = "#/login"; return; }
@@ -281,6 +283,7 @@
     try {
       if (cur === "open") await paneOpen(pane);
       else if (cur === "bookings") await paneBookings(pane);
+      else if (cur === "schools") await paneSchools(pane);
       else if (cur === "share") paneShare(pane);
       else paneSettings(pane);
     } catch (e) {
@@ -702,6 +705,160 @@
     };
   }
 
+  // ---------- 방문 학교 (방문 전 확인) ----------
+  const ymdLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fromYmd = (s) => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d); };
+  const dday = (ymd) => {
+    const n = Math.round((fromYmd(ymd) - dayStart(new Date())) / 86400000);
+    return n === 0 ? "오늘" : n > 0 ? `D-${n}` : "지남";
+  };
+  const isMine = (sc) => !!state.me && !!state.me.name && String(sc.promo_teacher || "").includes(state.me.name);
+  const nextVisit = (sc) => {
+    const today = ymdLocal(new Date());
+    const vs = (sc.visits || []).filter((v) => v.date);
+    return vs.find((v) => v.date >= today) || vs[vs.length - 1] || null;
+  };
+  const totalIntake = (sc) => (sc.intake || []).reduce((n, x) => n + (Number(x.count) || 0), 0);
+  const lastIntake = (sc) => { const xs = (sc.intake || []).filter((x) => x.count != null); return xs[xs.length - 1] || null; };
+  const schoolKeys = (sc) => {
+    const out = new Set([sc.name, sc.short]);
+    if (sc.short && sc.short.startsWith("인천") && sc.short.length > 3) out.add(sc.short.slice(2));
+    return [...out].filter((x) => x && x.length >= 2);
+  };
+  const bookingsFor = (sc, all) => all.filter((b) => b.status === "confirmed" && schoolKeys(sc).some((k) => String(b.school || "").replace(/\s/g, "").includes(k)));
+  const telLink = (p) => `tel:${String(p).replace(/[^0-9]/g, "")}`;
+
+  async function paneSchools(pane) {
+    pane.innerHTML = `<p class="muted">불러오는 중…</p>`;
+    const list = await API.listSchools();
+    if (!list.length) {
+      pane.innerHTML = `<div class="empty-pane">아직 방문 학교 자료가 없어요.${state.me.role === "admin" ? ` <a href="#/admin">관리 화면</a>에서 엑셀을 올려 주세요.` : " 관리자에게 자료 등록을 요청해 주세요."}</div>`;
+      return;
+    }
+    const mine = list.filter(isMine);
+    if (!state.schoolFilter) state.schoolFilter = mine.length ? "mine" : "all";
+    const draw = () => {
+      const q = state.schoolQuery.trim().replace(/\s/g, "");
+      let xs = state.schoolFilter === "mine" ? mine : state.schoolFilter === "visit" ? list.filter((x) => (x.visits || []).some((v) => v.date)) : list;
+      if (q) xs = xs.filter((x) => (x.name + x.short + (x.district || "") + (x.promo_teacher || "")).replace(/\s/g, "").includes(q));
+      const today = ymdLocal(new Date());
+      xs = xs.slice().sort((a, b) => {
+        const va = nextVisit(a), vb = nextVisit(b);
+        const ka = va && va.date >= today ? va.date : "9999", kb = vb && vb.date >= today ? vb.date : "9999";
+        return ka === kb ? a.no - b.no : ka.localeCompare(kb);
+      });
+      const $list = pane.querySelector("#sc-list");
+      $list.innerHTML = xs.length ? xs.map((x) => {
+        const v = nextVisit(x), li = lastIntake(x);
+        const upcoming = v && v.date >= today;
+        return `<a class="sc-card" href="#/school/${x.no}">
+          <div class="sc-top"><strong>${esc(x.short || x.name)}</strong>${v ? `<span class="badge ${upcoming ? "" : "off"}">${upcoming ? `${esc(dday(v.date))} · ` : ""}${fmtDay(fromYmd(v.date))}</span>` : ""}</div>
+          <div class="sc-meta">${[x.district, x.found, x.gender].filter(Boolean).map(esc).join(" · ")}${x.promo_teacher ? ` · 담당 ${esc(x.promo_teacher)}` : ""}</div>
+          <div class="sc-nums"><span>재학생 <b>${(x.current || []).length}</b>명</span><span>${li ? `${li.year} 입교 <b>${li.count}</b>명` : ""}</span><span>2학년 <b>${x.students ?? "-"}</b>명</span></div>
+        </a>`;
+      }).join("") : `<div class="empty-pane">${state.schoolFilter === "mine" ? "내 이름으로 배정된 학교가 없어요. '전체'에서 찾아보세요." : "찾는 학교가 없어요."}</div>`;
+      pane.querySelectorAll("[data-sf]").forEach((b) => b.setAttribute("aria-selected", b.dataset.sf === state.schoolFilter));
+    };
+    const updated = list[0] && list[0].updated_at ? ` · 자료 ${fmtDay(list[0].updated_at)} 기준` : "";
+    pane.innerHTML = `<div class="list-head"><div><h2 class="section-title">방문 학교</h2><p class="hint-line">학교를 누르면 방문 전에 볼 내용이 정리돼 있어요${updated}.</p></div></div>
+      <div class="subtabs" role="tablist">
+        <button type="button" role="tab" data-sf="mine">내 담당 ${mine.length}</button>
+        <button type="button" role="tab" data-sf="visit">방문 일정 있음</button>
+        <button type="button" role="tab" data-sf="all">전체 ${list.length}</button>
+      </div>
+      <div class="field"><input id="sc-q" type="search" aria-label="학교 찾기" placeholder="학교 이름, 구, 담당 선생님으로 찾기" value="${esc(state.schoolQuery)}"></div>
+      <div class="sc-list" id="sc-list"></div>`;
+    pane.querySelectorAll("[data-sf]").forEach((b) => { b.onclick = () => { state.schoolFilter = b.dataset.sf; draw(); }; });
+    pane.querySelector("#sc-q").oninput = (e) => { state.schoolQuery = e.target.value; draw(); };
+    draw();
+  }
+
+  async function viewSchool(no) {
+    if (!state.me) { location.hash = "#/login"; return; }
+    chrome(`<div class="wrap page"><p class="muted">불러오는 중…</p></div>`);
+    let list = [], bookings = [];
+    try { [list, bookings] = await Promise.all([API.listSchools(), API.listBookings().catch(() => [])]); }
+    catch (e) { simpleCard("학교 정보를 불러오지 못했어요", `<p class="muted">${esc(e.message)}</p>`); return; }
+    const sc = list.find((x) => String(x.no) === String(no));
+    if (!sc) { simpleCard("학교를 찾지 못했어요", `<p class="muted"><a href="#/app/schools">방문 학교 목록</a>으로 돌아가 주세요.</p>`); return; }
+    const today = ymdLocal(new Date());
+    const myBk = bookingsFor(sc, bookings).filter((b) => T.ms(b.end_at) >= Date.now() - 86400000 * 30);
+    const intake = (sc.intake || []).filter((x) => x.count != null);
+    const max = Math.max(1, ...intake.map((x) => x.count));
+    const total = totalIntake(sc), li = lastIntake(sc);
+    const avg = intake.length ? total / intake.length : 0;
+    const depts = {};
+    for (const st of sc.current || []) (depts[st.dept || "학과 미기재"] = depts[st.dept || "학과 미기재"] || []).push(st.name);
+
+    // 미팅 때 꺼낼 이야기
+    const points = [];
+    if (li) points.push(`${li.year}학년도에 <b>${li.count}명</b>이 입교했어요${intake.length > 1 ? ` (최근 ${intake.length}년 평균 ${avg.toFixed(1)}명${li.count > avg ? ", 평균보다 많음" : li.count < avg ? ", 평균보다 적음" : ""})` : ""}.`);
+    if ((sc.current || []).length) points.push(`이 학교 출신 재학생이 <b>${sc.current.length}명</b> 있어요: ${Object.entries(depts).map(([d, ns]) => `${esc(d)} ${ns.length}명`).join(", ")}.`);
+    else points.push(`현재 이 학교 출신 재학생은 없어요. 학과별 실제 수업 모습과 진로 사례 위주로 소개해 보세요.`);
+    if (sc.consign_hope) points.push(`위탁교육 희망 학생 수: <b>${esc(sc.consign_hope)}</b>`);
+    if (sc.our_hope) points.push(`본교 위탁교육 희망 학생 수: <b>${esc(sc.our_hope)}</b>`);
+    if (sc.briefing) points.push(`설명회 희망: ${esc(sc.briefing).replace(/\n/g, " ")}`);
+    if (sc.classes || sc.students) points.push(`2학년은 ${sc.classes ?? "-"}학급 ${sc.students ?? "-"}명이에요.`);
+
+    chrome(`<div class="wrap page sc-detail">
+      <a class="back" href="#/app/schools">‹ 방문 학교</a>
+      <div class="sc-hero card"><div class="card-body">
+        <div><h1>${esc(sc.short || sc.name)}</h1><p class="muted">${esc(sc.name)}</p></div>
+        <div class="row">${[sc.district, sc.found, sc.gender, sc.kind].filter(Boolean).map((t) => `<span class="badge">${esc(t)}</span>`).join("")}</div>
+        <p class="small">홍보 담당: <b>${esc(sc.promo_teacher || "미배정")}</b></p>
+      </div></div>
+
+      <div class="card"><div class="card-body">
+        <h2 class="section-title">방문 일정</h2>
+        ${(sc.visits || []).length ? `<ul class="sc-visits">${sc.visits.map((v) => `<li><span class="badge ${v.date && v.date >= today ? "" : "off"}">${v.date ? esc(dday(v.date)) : "날짜 미정"}</span><div><b>${v.date ? fmtDay(fromYmd(v.date)) : ""}</b>${v.note ? `<span class="muted"> ${esc(v.note)}</span>` : ""}</div></li>`).join("")}</ul>` : `<p class="muted">엑셀에 적힌 방문 일정이 없어요.</p>`}
+        ${myBk.length ? `<div class="stack">${myBk.map((b) => `<div class="sc-booking"><span class="lbl">내 예약</span><b>${fmtRange(b.start_at, b.end_at)}</b>
+            <span>${esc(b.contact_name)} 선생님 · <a href="${telLink(b.phone)}">${esc(b.phone)}</a></span>
+            ${b.target ? `<span class="muted">대상: ${esc(b.target)}</span>` : ""}${b.place ? `<span class="muted">장소: ${esc(b.place)}</span>` : ""}${b.request ? `<span class="muted">요청: ${esc(b.request)}</span>` : ""}</div>`).join("")}</div>` : ""}
+      </div></div>
+
+      <div class="card"><div class="card-body">
+        <h2 class="section-title">미팅 전에 확인할 것</h2>
+        <ul class="sc-points">${points.map((x) => `<li>${x}</li>`).join("")}</ul>
+      </div></div>
+
+      <div class="sc-tiles">
+        <div class="stat"><b>${(sc.current || []).length}명</b><span>본교 재학생</span></div>
+        <div class="stat"><b>${li ? `${li.count}명` : "-"}</b><span>${li ? `${li.year} 입교` : "최근 입교"}</span></div>
+        <div class="stat"><b>${total}명</b><span>${intake.length ? `${intake[0].year}~${li.year} 누적` : "누적 입교"}</span></div>
+        <div class="stat"><b>${sc.students ?? "-"}명</b><span>2학년 (${sc.classes ?? "-"}학급)</span></div>
+      </div>
+
+      ${intake.length ? `<div class="card"><div class="card-body">
+        <h2 class="section-title">해마다 입교한 학생 수</h2>
+        <div class="sc-bars" role="img" aria-label="연도별 입교 ${intake.map((x) => `${x.year}년 ${x.count}명`).join(", ")}">
+          ${intake.map((x) => `<div class="bar"><span class="v">${x.count}</span><i style="height:${Math.round((x.count / max) * 100)}%"></i><span class="y">${String(x.year).slice(2)}</span></div>`).join("")}
+        </div>
+      </div></div>` : ""}
+
+      <div class="card"><div class="card-body">
+        <h2 class="section-title">이 학교 출신 재학생</h2>
+        ${(sc.current || []).length ? `<div class="sc-depts">${Object.entries(depts).map(([d, ns]) => `<div><span class="dept">${esc(d)}</span><span>${ns.map(esc).join(", ")}</span></div>`).join("")}</div>` : `<p class="muted">없어요.</p>`}
+      </div></div>
+
+      <div class="card"><div class="card-body">
+        <h2 class="section-title">연락처</h2>
+        ${(sc.contacts || []).length ? `<div class="sc-contacts">${sc.contacts.map((c) => `<div class="sc-contact"><span class="role">${esc(c.role)}</span>
+          ${c.lines.map((l) => `<div class="line"><span>${esc(l.text)}</span>${(l.phones || []).map((ph) => `<a class="btn btn-sm btn-soft" href="${telLink(ph)}">전화</a>`).join("")}</div>`).join("")}</div>`).join("")}</div>` : `<p class="muted">연락처가 없어요.</p>`}
+      </div></div>
+    </div>`);
+  }
+
+  // 관리자: 방문 학교 엑셀 올리기 (SheetJS는 필요할 때만 불러옴)
+  function loadScript(src) {
+    return new Promise((ok, no) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = () => no(new Error("엑셀 읽기 도구를 불러오지 못했어요.")); document.head.appendChild(el); });
+  }
+  async function readSchoolExcel(file) {
+    if (!window.XLSX) await loadScript("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js");
+    if (!window.SchoolImport) await loadScript("assets/schools-import.js");
+    const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+    return window.SchoolImport.parseWorkbook(wb, window.XLSX);
+  }
+
   // ---------- 관리 (관리자만, 메뉴에 따로 노출) ----------
   // 헷갈리는 글자(0/o, 1/l)를 뺀 임시 비밀번호
   function tempPw() {
@@ -724,7 +881,8 @@
     chrome(`<div class="wrap page"><div class="page-head"><div><h1>관리</h1><p>선생님 계정과 전체 예약을 관리합니다.</p></div></div><div id="admin" class="stack"><p class="muted">불러오는 중…</p></div></div>`);
     const box = document.getElementById("admin");
     const draw = async () => {
-      const [users, all] = await Promise.all([API.listUsers(), API.listAllBookings()]);
+      const [users, all, schools] = await Promise.all([API.listUsers(), API.listAllBookings(), API.listSchools().catch(() => [])]);
+      const schoolCount = schools.length;
       const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
       box.innerHTML = `
         <div class="card"><div class="card-body">
@@ -735,11 +893,34 @@
           </tbody></table></div>
         </div></div>
         <div class="card"><div class="card-body">
+          <h2 class="section-title">방문 학교 자료</h2>
+          <p class="hint-line">'방문 홍보 배정' 엑셀 파일을 올리면 선생님들의 '방문 학교' 화면이 새 자료로 바뀌어요. 지금 ${schoolCount}개 학교가 들어 있어요.</p>
+          <div class="row"><label class="btn btn-primary" for="sc-file">엑셀 올리기</label><input id="sc-file" type="file" accept=".xlsx,.xls" hidden></div>
+          <div id="sc-preview"></div>
+        </div></div>
+        <div class="card"><div class="card-body">
           <h2 class="section-title">다가오는 전체 예약 ${upcoming.length}건</h2>
           ${upcoming.length ? `<div class="table-scroll"><table class="data"><thead><tr><th>일시</th><th>방문 담당</th><th>학교</th><th>담당 선생님</th><th>대상</th></tr></thead><tbody>
             ${upcoming.map((b) => `<tr><td>${fmtRange(b.start_at, b.end_at)}</td><td>${esc(b.owner_name)}</td><td>${esc(b.school)}</td><td>${esc(b.contact_name)} ${esc(b.phone)}</td><td>${esc(b.target || "-")}</td></tr>`).join("")}
           </tbody></table></div>` : `<div class="empty-pane">다가오는 예약이 없어요.</div>`}
         </div></div>`;
+      box.querySelector("#sc-file").onchange = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const $p = box.querySelector("#sc-preview");
+        $p.innerHTML = `<p class="muted">엑셀을 읽는 중…</p>`;
+        try {
+          const r = await readSchoolExcel(file);
+          const visits = r.schools.reduce((n, x) => n + (x.visits || []).length, 0);
+          $p.innerHTML = `<div class="msg-preview">학교 ${r.schools.length}곳, 방문 일정 ${visits}건, 재학생 ${r.schools.reduce((n, x) => n + x.current.length, 0)}명을 읽었어요.${r.unmatched.length ? `\n달력에서 학교를 찾지 못한 항목: ${r.unmatched.map(esc).join(", ")}` : ""}</div>
+            <div class="form-actions"><button class="btn btn-primary" id="sc-apply">이 자료로 바꾸기</button></div>`;
+          $p.querySelector("#sc-apply").onclick = async (ev) => {
+            ev.target.disabled = true;
+            try { await API.replaceSchools(r.schools); toast("방문 학교 자료를 바꿨어요."); draw(); }
+            catch (e2) { toast(e2.message); ev.target.disabled = false; }
+          };
+        } catch (e2) { $p.innerHTML = `<p class="error">${esc(e2.message)}</p>`; }
+        e.target.value = "";
+      };
       const userOf = (id) => users.find((x) => x.id === id) || {};
       box.querySelectorAll("[data-reset]").forEach((b) => { b.onclick = () => {
         const u = userOf(b.dataset.reset);
@@ -962,6 +1143,7 @@
       return viewSignup();
     }
     if (a === "admin") return viewAdmin();
+    if (a === "school" && b) return viewSchool(decodeURIComponent(b));
     if (a === "app") {
       if (!state.me && !API.demo && API.sessionEmail && (await API.sessionEmail())) return viewNotRegistered();
       return viewApp(b);
