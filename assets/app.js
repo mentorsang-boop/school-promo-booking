@@ -622,7 +622,7 @@
         <div class="meta"><strong>${esc(b.school)}</strong> ${b.status === "cancelled" ? `<span class="badge off">취소됨</span>` : T.ms(b.end_at) < Date.now() ? `<span class="badge off">방문 완료</span>` : `<span class="badge ok">확정</span>`}
           <p>${esc(b.contact_name)} 선생님 · <span style="white-space:nowrap">${esc(b.phone)}</span> · ${esc(b.target || "대상 미입력")} · ${esc(b.place || state.me.default_place || "장소 미입력")}</p>
           ${b.request ? `<p>요청: ${esc(b.request)}</p>` : ""}</div>
-        <div class="acts">${b.status === "confirmed" ? `<button class="btn btn-sm btn-soft" data-msg="${b.id}">안내문자</button><button class="btn btn-sm btn-danger" data-cancel="${b.id}">취소</button>` : ""}</div>
+        <div class="acts">${b.status === "confirmed" ? `<button class="btn btn-sm btn-soft" data-msg="${b.id}">안내문자</button><button class="btn btn-sm" data-edit="${b.id}">수정</button><button class="btn btn-sm btn-danger" data-cancel="${b.id}">취소</button>` : ""}</div>
       </div>`;
 
     pane.innerHTML = `
@@ -653,6 +653,7 @@
     if (am) am.onclick = () => { state.bookDay = null; paneBookings(pane); };
 
     pane.querySelector("#phone-add").onclick = () => openPhoneBooking(pane);
+    pane.querySelectorAll("[data-edit]").forEach((btn) => { btn.onclick = () => openPhoneBooking(pane, all.find((x) => x.id === btn.dataset.edit)); });
     pane.querySelectorAll("[data-msg]").forEach((btn) => {
       btn.onclick = () => {
         const b = all.find((x) => x.id === btn.dataset.msg);
@@ -678,27 +679,31 @@
   }
 
   // 전화로 받은 예약을 내 계정에 바로 등록 (열린 시간·신청 기간과 상관없이, 겹치는 예약만 막음)
-  async function openPhoneBooking(pane) {
+  async function openPhoneBooking(pane, edit) {
     const unit = Number(state.me.slot_minutes) || 30;
-    const base = state.bookDay || addDays(dayStart(new Date()), 1);
+    const base = edit ? new Date(edit.start_at) : state.bookDay || addDays(dayStart(new Date()), 1);
+    const hm = (d) => `${pad(new Date(d).getHours())}:${pad(new Date(d).getMinutes())}`;
+    const ev = (k) => esc(edit ? edit[k] || "" : "");
     const times = [];
     for (let m = 7 * 60; m <= 20 * 60; m += unit) times.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+    if (edit) for (const t of [hm(edit.start_at), hm(edit.end_at)]) if (!times.includes(t)) times.push(t);
+    times.sort();
     const timeOpt = (sel) => times.map((t) => `<option value="${t}"${t === sel ? " selected" : ""}>${t}</option>`).join("");
     let schools = [];
     try { schools = await API.listSchools(); } catch (e) { /* 목록 없이도 입력 가능 */ }
-    openModal(`<form class="card-body" id="ph-form"><h2 class="section-title">전화 예약 등록</h2>
-      <p class="small muted">학교에서 전화로 신청한 방문을 바로 넣어요. 열어 둔 시간이 아니어도 등록돼요.</p>
-      <div class="field"><label for="ph-school">학교</label><input id="ph-school" list="ph-schools" required maxlength="100" autocomplete="off" placeholder="학교 이름"><datalist id="ph-schools">${schools.map((x) => `<option value="${esc(x.name)}">`).join("")}</datalist></div>
-      <div class="grid-2"><div class="field"><label for="ph-name">담당 선생님</label><input id="ph-name" required maxlength="50"></div>
-      <div class="field"><label for="ph-phone">연락처</label><input id="ph-phone" type="tel" inputmode="tel" required placeholder="010-0000-0000"></div></div>
+    openModal(`<form class="card-body" id="ph-form"><h2 class="section-title">${edit ? "예약 수정" : "전화 예약 등록"}</h2>
+      ${edit ? "" : `<p class="small muted">학교에서 전화로 신청한 방문을 바로 넣어요. 열어 둔 시간이 아니어도 등록돼요.</p>`}
+      <div class="field"><label for="ph-school">학교</label><input id="ph-school" list="ph-schools" required maxlength="100" autocomplete="off" value="${ev("school")}" placeholder="학교 이름"><datalist id="ph-schools">${schools.map((x) => `<option value="${esc(x.name)}">`).join("")}</datalist></div>
+      <div class="grid-2"><div class="field"><label for="ph-name">담당 선생님</label><input id="ph-name" required maxlength="50" value="${ev("contact_name")}"></div>
+      <div class="field"><label for="ph-phone">연락처</label><input id="ph-phone" type="tel" inputmode="tel" required placeholder="010-0000-0000" value="${ev("phone")}"></div></div>
       <div class="field"><label for="ph-date">날짜</label><input id="ph-date" type="date" required value="${ymdLocal(base)}"></div>
-      <div class="grid-2"><div class="field"><label for="ph-s">시작</label><select id="ph-s">${timeOpt("10:00")}</select></div>
-      <div class="field"><label for="ph-e">끝</label><select id="ph-e">${timeOpt("11:00")}</select></div></div>
-      <div class="field"><label for="ph-target">대상 (선택)</label><input id="ph-target" maxlength="100" placeholder="예: 3학년 50명"></div>
-      <div class="field"><label for="ph-place">장소 (선택)</label><input id="ph-place" maxlength="100" value="${esc(state.me.default_place || "")}"></div>
-      <div class="field"><label for="ph-req">요청사항 (선택)</label><textarea id="ph-req" rows="2" maxlength="1000"></textarea></div>
+      <div class="grid-2"><div class="field"><label for="ph-s">시작</label><select id="ph-s">${timeOpt(edit ? hm(edit.start_at) : "10:00")}</select></div>
+      <div class="field"><label for="ph-e">끝</label><select id="ph-e">${timeOpt(edit ? hm(edit.end_at) : "11:00")}</select></div></div>
+      <div class="field"><label for="ph-target">대상 (선택)</label><input id="ph-target" maxlength="100" placeholder="예: 3학년 50명" value="${ev("target")}"></div>
+      <div class="field"><label for="ph-place">장소 (선택)</label><input id="ph-place" maxlength="100" value="${edit ? ev("place") : esc(state.me.default_place || "")}"></div>
+      <div class="field"><label for="ph-req">요청사항 (선택)</label><textarea id="ph-req" rows="2" maxlength="1000">${ev("request")}</textarea></div>
       <p class="error" id="ph-err" hidden></p>
-      <div class="form-actions"><button type="button" class="btn" data-close>닫기</button><button class="btn btn-primary" id="ph-save">예약 등록</button></div></form>`);
+      <div class="form-actions"><button type="button" class="btn" data-close>닫기</button><button class="btn btn-primary" id="ph-save">${edit ? "수정 저장" : "예약 등록"}</button></div></form>`);
     document.getElementById("ph-form").onsubmit = async (e) => {
       e.preventDefault();
       const v = (id) => document.getElementById(id).value.trim();
@@ -711,12 +716,13 @@
       const btn = document.getElementById("ph-save");
       btn.disabled = true;
       try {
-        const b = await API.addBooking(s.toISOString(), en.toISOString(), { school: v("ph-school"), contact_name: v("ph-name"), phone: v("ph-phone"), target: v("ph-target"), place: v("ph-place"), request: v("ph-req") });
-        closeModal(); toast("예약을 등록했어요.");
+        const fields = { school: v("ph-school"), contact_name: v("ph-name"), phone: v("ph-phone"), target: v("ph-target"), place: v("ph-place"), request: v("ph-req") };
+        const b = edit ? await API.updateBooking(edit.id, s.toISOString(), en.toISOString(), fields) : await API.addBooking(s.toISOString(), en.toISOString(), fields);
+        closeModal(); toast(edit ? "예약을 수정했어요." : "예약을 등록했어요.");
         state.month = monthStart(s); state.bookDay = dayStart(s); state.bookAll = false;
         await paneBookings(pane);
         openModal(`<div class="card-body"><h2 class="section-title">${esc(b.school)} 안내문자</h2>
-          <p class="small muted">전화 받은 선생님께 확정 문자를 보내 드리세요.</p>
+          <p class="small muted">${edit ? "바뀐 내용을 선생님께 다시 알려 드리세요." : "전화 받은 선생님께 확정 문자를 보내 드리세요."}</p>
           <div class="field"><textarea id="msg-edit" rows="12">${esc(confirmMessage(state.me, b))}</textarea></div>
           <div class="form-actions"><button class="btn" data-close>나중에</button><button class="btn" id="m-copy">복사</button><button class="btn btn-kakao" id="m-share">카카오톡으로 보내기</button></div></div>`);
         document.getElementById("m-copy").onclick = () => copyText(document.getElementById("msg-edit").value);

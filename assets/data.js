@@ -254,6 +254,17 @@
         save();
         return wait(b);
       },
+      async updateBooking(id, start_at, end_at, fields) {
+        const p = need();
+        const db = load();
+        const b = db.bookings.find((x) => x.id === id && x.user_id === p.id && x.status === "confirmed");
+        if (!b) throw new Error("예약을 찾지 못했어요.");
+        if (!(T.ms(end_at) > T.ms(start_at))) throw new Error("끝나는 시간이 시작보다 늦어야 해요.");
+        if (db.bookings.some((x) => x.id !== id && x.user_id === p.id && x.status === "confirmed" && T.overlaps(x.start_at, x.end_at, start_at, end_at))) throw new Error("그 시간에는 이미 다른 예약이 있어요.");
+        Object.assign(b, { start_at, end_at }, fields);
+        save();
+        return wait(b);
+      },
       async cancelBooking(id) {
         const p = need();
         const b = load().bookings.find((x) => x.id === id && (x.user_id === p.id || p.role === "admin"));
@@ -457,6 +468,12 @@
       },
       async addBooking(start_at, end_at, fields) {
         const { data, error } = await sb.from("bookings").insert({ user_id: current.id, start_at, end_at, ...fields, status: "confirmed" }).select().single();
+        if (error && /no_overlap|exclusion/.test(error.message)) throw new Error("그 시간에는 이미 다른 예약이 있어요.");
+        fail(error);
+        return data;
+      },
+      async updateBooking(id, start_at, end_at, fields) {
+        const { data, error } = await sb.from("bookings").update({ start_at, end_at, ...fields }).eq("id", id).eq("user_id", current.id).eq("status", "confirmed").select().single();
         if (error && /no_overlap|exclusion/.test(error.message)) throw new Error("그 시간에는 이미 다른 예약이 있어요.");
         fail(error);
         return data;
