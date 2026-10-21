@@ -253,10 +253,18 @@
       if (v("u-pw") !== v("u-pw2")) return show("두 비밀번호가 서로 달라요.");
       try {
         state.me = await API.signUp({ name: v("u-name").trim(), login_id: v("u-id").trim().toLowerCase(), password: v("u-pw") });
-        toast("계정을 만들었어요. 먼저 방문 가능한 시간을 열어 주세요.");
+        toast("계정을 만들었어요. 관리자가 승인하면 쓸 수 있어요.");
         location.hash = "#/app";
       } catch (e2) { show(e2.message); }
     };
+  }
+
+  function viewInactive() {
+    if (state.me.pending) {
+      simpleCard("관리자 승인을 기다리고 있어요", `<p class="muted">${esc(state.me.name)} 선생님 계정(아이디 <b>${esc(state.me.login_id || "")}</b>)이 만들어졌어요. 관리자가 승인하면 이 화면에서 바로 쓸 수 있어요.</p>
+        <div class="row"><button class="btn" id="recheck">승인됐는지 다시 확인</button></div>`);
+      document.getElementById("recheck").onclick = async () => { state.me = await API.init(); route(); };
+    } else simpleCard("사용이 멈춘 계정이에요", `<p class="muted">홍보 담당 부서에 문의해 주세요.</p>`);
   }
 
   async function viewNotRegistered() {
@@ -271,7 +279,7 @@
 
   async function viewApp(tab) {
     if (!state.me) { location.hash = "#/login"; return; }
-    if (!state.me.active) { simpleCard("사용이 멈춘 계정이에요", `<p class="muted">홍보 담당 부서에 문의해 주세요.</p>`); return; }
+    if (!state.me.active) { viewInactive(); return; }
     const cur = TABS.some(([k]) => k === tab) ? tab : "open";
     chrome(`<div class="wrap page">
       <div class="page-head"><div><h1>${esc(state.me.name)} 선생님의 홍보 예약</h1><p>신청 페이지: <a href="#/r/${esc(state.me.slug)}">/r/${esc(state.me.slug)}</a></p></div></div>
@@ -775,6 +783,7 @@
 
   async function viewSchool(no) {
     if (!state.me) { location.hash = "#/login"; return; }
+    if (!state.me.active) { viewInactive(); return; }
     chrome(`<div class="wrap page"><p class="muted">불러오는 중…</p></div>`);
     let list = [], bookings = [];
     try { [list, bookings] = await Promise.all([API.listSchools(), API.listBookings().catch(() => [])]); }
@@ -884,12 +893,14 @@
       const [users, all, schools] = await Promise.all([API.listUsers(), API.listAllBookings(), API.listSchools().catch(() => [])]);
       const schoolCount = schools.length;
       const upcoming = all.filter((b) => b.status === "confirmed" && T.ms(b.end_at) >= Date.now());
+      const waiting = users.filter((u) => u.pending);
+      users.sort((a, b) => (b.pending ? 1 : 0) - (a.pending ? 1 : 0));
       box.innerHTML = `
         <div class="card"><div class="card-body">
-          <h2 class="section-title">선생님 ${users.length}명</h2><p class="hint-line">선생님은 로그인 화면의 '계정 만들기'에서 직접 가입해요. 모르는 계정은 '사용 멈춤'이나 삭제로 정리해 주세요.</p>
+          <h2 class="section-title">선생님 ${users.length}명${waiting.length ? ` <span class="badge">승인 대기 ${waiting.length}</span>` : ""}</h2><p class="hint-line">선생님이 '계정 만들기'로 가입하면 여기에 '승인 대기'로 올라와요. 우리 학교 선생님이 맞으면 '승인'을, 모르는 계정은 삭제해 주세요.</p>
           <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>아이디</th><th>신청 페이지</th><th>권한</th><th>상태</th><th></th></tr></thead><tbody>
-            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.login_id || "")}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.role === "admin" ? "관리자" : "선생님"}</td><td><span class="badge ${u.active ? "ok" : "off"}">${u.active ? "사용 중" : "멈춤"}</span></td>
-              <td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm" data-reset="${u.id}">비밀번호 초기화</button>${u.id === state.me.id ? "" : `<button class="btn btn-sm" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : "다시 사용"}</button><button class="btn btn-sm btn-danger" data-del="${u.id}">삭제</button>`}</div></td></tr>`).join("")}
+            ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.login_id || "")}</td><td><a href="#/r/${esc(u.slug)}">/r/${esc(u.slug)}</a></td><td>${u.role === "admin" ? "관리자" : "선생님"}</td><td><span class="badge ${u.active ? "ok" : u.pending ? "" : "off"}">${u.active ? "사용 중" : u.pending ? "승인 대기" : "멈춤"}</span></td>
+              <td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm" data-reset="${u.id}">비밀번호 초기화</button>${u.id === state.me.id ? "" : `<button class="btn btn-sm ${u.pending ? "btn-primary" : ""}" data-act="${u.id}" data-to="${u.active ? "0" : "1"}">${u.active ? "사용 멈춤" : u.pending ? "승인" : "다시 사용"}</button><button class="btn btn-sm btn-danger" data-del="${u.id}">삭제</button>`}</div></td></tr>`).join("")}
           </tbody></table></div>
         </div></div>
         <div class="card"><div class="card-body">
@@ -943,7 +954,7 @@
           try { await API.deleteUser(u.id); closeModal(); toast("계정을 삭제했어요."); draw(); } catch (e) { toast(e.message); }
         };
       }; });
-      box.querySelectorAll("[data-act]").forEach((b) => { b.onclick = async () => { try { await API.setUserActive(b.dataset.act, b.dataset.to === "1"); draw(); } catch (e) { toast(e.message); } }; });
+      box.querySelectorAll("[data-act]").forEach((b) => { b.onclick = async () => { try { await API.setUserActive(b.dataset.act, b.dataset.to === "1"); if (b.textContent === "승인") toast("승인했어요."); draw(); } catch (e) { toast(e.message); } }; });
     };
     try { await draw(); } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; }
   }

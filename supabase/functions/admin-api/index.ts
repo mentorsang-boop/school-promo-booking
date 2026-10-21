@@ -1,7 +1,7 @@
 // 아이디·비밀번호 계정 관리 서버 함수.
 // - status: 관리자 계정이 아직 없는지 (처음 설정 화면용)
 // - setup: 관리자 계정이 하나도 없을 때만 첫 관리자 만들기
-// - signup: 선생님이 직접 가입
+// - signup: 선생님이 직접 가입 (관리자 승인 전까지 사용 불가)
 // - create_user / reset_password / delete_user: 관리자만
 // 아이디는 내부적으로 `{아이디}@isg-promo.local` 이메일로 저장합니다 (메일은 보내지 않음).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -39,7 +39,7 @@ async function freeSlug(base: string) {
   return slug;
 }
 
-async function createAccount(loginId: string, password: string, name: string, role: "admin" | "user") {
+async function createAccount(loginId: string, password: string, name: string, role: "admin" | "user", pending = false) {
   if (!ID_RE.test(loginId)) return { error: "아이디는 영어 소문자, 숫자, . _ - 로 3~20자여야 해요." };
   if (password.length < 6) return { error: "비밀번호는 6자 이상이어야 해요." };
   if (!name) return { error: "이름을 입력해 주세요." };
@@ -50,7 +50,7 @@ async function createAccount(loginId: string, password: string, name: string, ro
   if (error) console.error("createUser", error.message);
   if (error || !created?.user) return { error: error?.message?.includes("already") ? "이미 있는 아이디예요." : "계정을 만들지 못했어요." };
   const { error: pe } = await db.from("profiles").insert({
-    id: created.user.id, email, login_id: loginId, name, role, slug: await freeSlug(loginId),
+    id: created.user.id, email, login_id: loginId, name, role, slug: await freeSlug(loginId), active: !pending, pending,
   });
   if (pe) {
     await db.auth.admin.deleteUser(created.user.id);
@@ -77,9 +77,9 @@ Deno.serve(async (req) => {
     return r.error ? fail(r.error) : json({ ok: true });
   }
 
-  // 선생님이 직접 가입 (관리자가 '사용 멈춤'이나 삭제로 정리)
+  // 선생님이 직접 가입 → 관리자가 승인해야 사용 가능
   if (action === "signup") {
-    const r = await createAccount(loginId, password, name, "user");
+    const r = await createAccount(loginId, password, name, "user", true);
     return r.error ? fail(r.error) : json({ ok: true });
   }
 

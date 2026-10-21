@@ -245,7 +245,7 @@
         const tpl = db.profiles[0];
         db.profiles.push({
           id: "u-" + Math.random().toString(36).slice(2, 9), login_id, email: login_id + "@isg-promo.local", name: name.trim(),
-          role: role === "admin" ? "admin" : "user", active: true, slug, password,
+          role: role === "admin" ? "admin" : "user", active: !self, pending: !!self, slug, password,
           slot_minutes: 30, duration_minutes: 60, days_ahead: 28, day_start: "09:00", day_end: "18:00", book_from: null, book_until: null, class_times: [],
           page_title: tpl.page_title, page_intro: "편하신 날짜와 시간을 30분 단위로 골라 신청해 주세요. 신청 즉시 확정됩니다.",
           contact_phone: "", default_place: "", invite_template: DEFAULT_INVITE, confirm_template: DEFAULT_CONFIRM,
@@ -268,7 +268,7 @@
         save();
       },
       async listUsers() { needAdmin(); return load().profiles.slice(); },
-      async setUserActive(id, active) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.active = active; save(); } },
+      async setUserActive(id, active) { needAdmin(); const u = load().profiles.find((p) => p.id === id); if (u) { u.active = active; u.pending = false; save(); } },
       async listAllBookings() {
         needAdmin();
         const db = load();
@@ -420,7 +420,7 @@
         return data;
       },
       async setUserActive(id, active) {
-        const { error } = await sb.from("profiles").update({ active }).eq("id", id);
+        const { error } = await sb.from("profiles").update({ active, pending: false }).eq("id", id);
         fail(error);
       },
       async listAllBookings() {
