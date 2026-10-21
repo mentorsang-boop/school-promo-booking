@@ -51,12 +51,24 @@
   // 아이디는 서버에 `{아이디}@isg-promo.local` 형태로 저장됩니다 (메일은 보내지 않음).
   const ID_DOMAIN = "isg-promo.local";
   const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
+  // 학교 정보(주소·위치·설립·공학·구분)는 엑셀과 따로 저장해서, 엑셀을 다시 올려도 남아 있게 함
+  const INFO_FIELDS = ["address", "district", "lat", "lng", "found", "gender", "kind", "mark", "memo"];
+  function mergeInfo(list, infos) {
+    const by = new Map(infos.map((x) => [x.name, x]));
+    return list.map((sc) => {
+      const i = by.get(sc.name);
+      if (!i) return sc;
+      const out = { ...sc };
+      for (const k of INFO_FIELDS) if (i[k] != null && i[k] !== "") out[k] = i[k];
+      return out;
+    });
+  }
 
   // =====================================================================
   // 체험 모드
   // =====================================================================
   function demoApi() {
-    const KEY = "promo-booking-demo-v3.5";
+    const KEY = "promo-booking-demo-v3.6";
     const SESSION_KEY = "promo-booking-demo-session";
     let mem = null;
     let sessionMem = null;
@@ -147,7 +159,15 @@
         sc(4, "바다고등학교", "중구", "공립", "공학", "미카", [0, 1, 0, 2, 1, 0, 1, 2], [], {}),
         sc(5, "솔빛고등학교", "남동구", "사립", "공학", "", [4, 2, 3, 1, 2, 1, 0, 1], [], {}),
       ];
-      return { profiles, open, bookings, schools };
+      // 예시 위치 (가짜 학교라 좌표도 예시)
+      const schoolInfo = [
+        { name: "한빛고등학교", address: "인천 서해구 예시로 1", district: "서해구", lat: 37.5134, lng: 126.6799 },
+        { name: "새솔고등학교", address: "인천 연수구 예시로 2", district: "연수구", lat: 37.4100, lng: 126.6780 },
+        { name: "푸른여자고등학교", address: "인천 부평구 예시로 3", district: "부평구", lat: 37.4930, lng: 126.7240 },
+        { name: "바다고등학교", address: "인천 제물포구 예시로 4", district: "제물포구", lat: 37.4740, lng: 126.6210 },
+        { name: "솔빛고등학교", address: "인천 남동구 예시로 5", district: "남동구", lat: 37.4470, lng: 126.7310, mark: "care", memo: "작년 담당 선생님이 바뀌어 다시 인사 필요" },
+      ];
+      return { profiles, open, bookings, schools, schoolInfo };
     }
 
     function load() {
@@ -287,7 +307,16 @@
           .sort((a, b) => T.ms(a.start_at) - T.ms(b.start_at));
       },
       // 방문 학교
-      async listSchools() { need(); return (load().schools || []).slice(); },
+      async listSchools() { need(); return mergeInfo(load().schools || [], load().schoolInfo || []); },
+      async setSchoolMark(name, mark, memo) {
+        needOwner();
+        const db = load();
+        db.schoolInfo = db.schoolInfo || [];
+        let i = db.schoolInfo.find((x) => x.name === name);
+        if (!i) { i = { name }; db.schoolInfo.push(i); }
+        i.mark = mark || ""; i.memo = memo || "";
+        save();
+      },
       async replaceSchools(list) { needOwner(); load().schools = list; save(); },
       // 신청자(로그인 없음)
       async publicPage(slug) {
@@ -451,9 +480,15 @@
         return data.map((b) => ({ ...b, owner_name: b.profiles ? b.profiles.name : "" }));
       },
       async listSchools() {
-        const { data, error } = await sb.from("visit_schools").select("no, data, updated_at").order("no");
+        const [{ data, error }, info] = await Promise.all([
+          sb.from("visit_schools").select("no, data, updated_at").order("no"),
+          sb.from("school_info").select("*"),
+        ]);
         fail(error);
-        return data.map((r) => ({ ...r.data, updated_at: r.updated_at }));
+        return mergeInfo(data.map((r) => ({ ...r.data, updated_at: r.updated_at })), info.error ? [] : info.data);
+      },
+      async setSchoolMark(name, mark, memo) {
+        fail((await sb.from("school_info").upsert({ name, mark: mark || "", memo: memo || "", updated_at: new Date().toISOString() })).error);
       },
       async replaceSchools(list) {
         fail((await sb.from("visit_schools").delete().gte("no", -1000000)).error);

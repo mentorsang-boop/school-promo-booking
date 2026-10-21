@@ -269,3 +269,23 @@ begin
   if not public.is_admin() then raise exception '관리자만 할 수 있어요.'; end if;
   return query select p.id, p.name, p.role, p.owner, p.active from public.profiles p order by p.created_at;
 end $$;
+
+-- ---------- v3.6: 학교 정보 (주소·위치·설립·공학·관리 구분). 엑셀과 따로 두어 다시 올려도 유지 ----------
+create table if not exists public.school_info (
+  name text primary key,
+  address text not null default '',
+  district text not null default '',
+  lat double precision,
+  lng double precision,
+  found text not null default '',
+  gender text not null default '',
+  kind text not null default '',
+  mark text not null default '' check (mark in ('', 'care', 'focus', 'new', 'steady')),
+  memo text not null default '',
+  updated_at timestamptz not null default now()
+);
+alter table public.school_info enable row level security;
+create policy "active users read school info" on public.school_info
+  for select to authenticated using ((select public.is_active_user()));
+create policy "owner manages school info" on public.school_info
+  for all to authenticated using ((select public.is_owner())) with check ((select public.is_owner()));
