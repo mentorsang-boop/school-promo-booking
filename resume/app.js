@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.3';
+const VERSION = '1.4';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -30,10 +30,12 @@ let toastTimer;
 const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3000); };
 const when = (iso) => (iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-');
 
+const syncAddress = (d) => { d.address = [d.addressBase, d.addressDetail].map((x) => String(x || '').trim()).filter(Boolean).join(' '); };
+
 /* 진행률 */
 function missing(d, hasPhoto) {
   const list = REQUIRED.filter(([k]) => !String(d[k] || '').trim()).map((x) => x[1]);
-  if (String(d.address || '').trim() === '인천광역시') list.push('상세 주소');
+  if (d.address && !String(d.addressDetail || '').trim()) list.push('상세 주소');
   if (!hasPhoto) list.push('사진');
   if (!d.company?.trim()) list.push('회사명');
   INTRO.forEach(([k, label]) => { if (!d.intro?.[k]?.trim()) list.push(label); });
@@ -42,7 +44,11 @@ function missing(d, hasPhoto) {
 const progress = (d, hasPhoto) => { const total = REQUIRED.length + 2 + INTRO.length; return Math.max(0, Math.round((1 - missing(d, hasPhoto).length / total) * 100)); };
 const mergeDoc = (data, profile) => {
   const base = newResume(profile);
-  return { ...base, ...data, intro: { ...base.intro, ...(data?.intro || {}) } };
+  const doc = { ...base, ...data, intro: { ...base.intro, ...(data?.intro || {}) } };
+  // 검색 기능 이전에 직접 입력한 주소는 검색 주소 칸으로 옮긴다
+  if (!doc.addressBase && String(doc.address || '').trim() !== '인천광역시') doc.addressBase = doc.address || '';
+  syncAddress(doc);
+  return doc;
 };
 
 /* 공통 틀 */
@@ -85,8 +91,16 @@ function setPath(path, value) {
   keys.reduce((o, k) => o[k], state.doc)[last] = value;
 }
 const input = (path, label, opts = {}) => `<div class="field ${opts.cls || ''}"><label for="i-${path}">${label}${opts.req ? ' <span class="req">*</span>' : ''}</label>
-  <input id="i-${path}" data-path="${path}" value="${esc(getPath(path))}" type="${opts.type || 'text'}" ${opts.date ? 'data-date="1" inputmode="numeric"' : ''} ${opts.mode ? `inputmode="${opts.mode}"` : ''}></div>`;
+  <input id="i-${path}" data-path="${path}" value="${esc(opts.date ? toIso(getPath(path)) : getPath(path))}" type="${opts.date ? 'date' : opts.type || 'text'}" ${opts.date ? 'data-date="1"' : ''}></div>`;
 const DATE = { date: true };
+const toIso = (s) => { const m = String(s || '').match(/(\d{4})\D+(\d{1,2})(?:\D+(\d{1,2}))?/); return m ? `${m[1]}-${m[2].padStart(2, '0')}-${(m[3] || '1').padStart(2, '0')}` : ''; };
+const fromIso = (v) => (v ? v.replace(/-/g, '.') : '');
+// 재학기간처럼 한 칸에 '시작~종료'로 저장하는 값을 달력 두 개로 나눠 입력한다
+const rangeInput = (path, label) => {
+  const [from, to] = String(getPath(path) || '').split('~');
+  const one = (i, text, v) => `<div class="field"><label for="i-${path}-${i}">${label} ${text}</label><input id="i-${path}-${i}" type="date" data-range="${path}" data-i="${i}" value="${toIso(v)}"></div>`;
+  return one(0, '시작', from) + one(1, '종료', to);
+};
 
 /* 항목 바로 아래에 붙는 피드백: 교사는 내용을 보면서 쓰고, 학생은 고칠 곳에서 바로 읽는다 */
 function fbList(section) {
@@ -111,12 +125,13 @@ function editForm() {
     <div class="form-grid">
       ${input('applyField', '지원분야', { req: 1 })}${input('name', '성명', { req: 1 })}
       ${input('birth', '생년월일', { req: 1, ...DATE })}${input('mobile', '휴대번호', { req: 1, type: 'tel' })}
-      ${input('address', '주소', { req: 1, cls: 'full' })}
+      <div class="field full"><label for="i-addressBase">주소 <span class="req">*</span></label><div class="addr-row"><input id="i-addressBase" value="${esc(d.addressBase)}" readonly data-act="findAddr"><button class="btn btn-soft" type="button" data-act="findAddr">주소 검색</button></div></div>
+      ${input('addressDetail', '상세주소', { req: 1, cls: 'full' })}
       ${input('homePhone', '집 번호', { type: 'tel' })}${input('email', 'E-mail', { req: 1, type: 'email' })}
     </div>${fbBlock('기본 정보')}</section>
   <section class="card"><h2>학력</h2><div class="form-grid">
-    ${input('eduPeriod', '재학기간')}${input('eduSchool', '학교명')}
-    ${input('edu2Period', '원적교 재학기간')}${input('edu2School', '원적교')}
+    ${rangeInput('eduPeriod', '재학기간')}${input('eduSchool', '학교명', { cls: 'full' })}
+    ${rangeInput('edu2Period', '원적교 재학기간')}${input('edu2School', '원적교', { cls: 'full' })}
     ${input('major', '전공분야(학과명)', { req: 1 })}${input('gradStatus', '졸업여부')}
   </div>${fbBlock('학력')}</section>
   <section class="card"><h2>자격 및 면허</h2><div class="rows">${d.licenses.map((_, i) => `<div class="entry-3">${input(`licenses.${i}.date`, '취득일', DATE)}${input(`licenses.${i}.name`, '자격 및 면허증 명')}${input(`licenses.${i}.org`, '발급기관')}</div>`).join('<hr style="border:0;border-top:1px solid var(--line);margin:0;width:100%">')}</div>${fbBlock('자격 및 면허')}</section>
@@ -364,6 +379,21 @@ const ACT = {
   logout: async () => { if (state.dirty) await save(); await sb.auth.signOut(); state.profile = null; state.view = 'auth'; state.authTab = 'login'; render(); },
   reload: () => boot(),
   password: () => passwordModal('비밀번호 변경', async (pw) => { const { error } = await sb.auth.updateUser({ password: pw }); if (error) throw error; toast('비밀번호를 변경했습니다.'); }),
+  findAddr: () => {
+    if (!window.daum?.Postcode) { toast('주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
+    $('#modal').innerHTML = '<div class="modal-back"><div class="modal-box"><div class="row between"><h2 style="font-size:1.125rem">주소 검색</h2><button class="btn btn-sm" data-act="closeModal">닫기</button></div><div id="postcode"></div></div></div>';
+    new daum.Postcode({
+      width: '100%', height: '100%',
+      oncomplete: (r) => {
+        state.doc.addressBase = r.roadAddress || r.jibunAddress || r.address;
+        syncAddress(state.doc);
+        $('#modal').innerHTML = '';
+        $('#i-addressBase').value = state.doc.addressBase;
+        $('#i-addressDetail').focus();
+        queueSave();
+      },
+    }).embed($('#postcode'));
+  },
   closeModal: () => { $('#modal').innerHTML = ''; },
   print: async () => { if (state.dirty) await save(); renderPaper(); await document.fonts.ready; window.print(); },
   pdf: async () => { if (state.dirty) await save(); await downloadPdf(); },
@@ -403,23 +433,23 @@ document.addEventListener('click', (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.id === 'search') { state.search = t.value; const pos = t.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); return; }
+  if (t.dataset.range) {
+    const parts = String(getPath(t.dataset.range) || '').split('~');
+    parts[+t.dataset.i] = fromIso(t.value);
+    setPath(t.dataset.range, parts[0] || parts[1] ? `${parts[0] || ''}~${parts[1] || ''}` : '');
+    queueSave();
+    return;
+  }
   if (!t.dataset.path) return;
-  setPath(t.dataset.path, t.value);
+  setPath(t.dataset.path, t.dataset.date ? fromIso(t.value) : t.value);
+  if (t.dataset.path === 'addressDetail') syncAddress(state.doc);
   const c = document.querySelector(`[data-count="${t.dataset.path}"]`);
   if (c) c.textContent = `${t.value.length} / ${INTRO_MAX}자`;
   queueSave();
 });
-// 숫자만 입력해도 2026.03.06 형태로 정리한다
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.id === 'photoInput' && t.files[0]) { uploadPhoto(t.files[0]); return; }
-  if (t.dataset.date) {
-    const n = t.value.replace(/\D/g, '');
-    if (n.length === 8 || n.length === 6) {
-      t.value = n.length === 8 ? `${n.slice(0, 4)}.${n.slice(4, 6)}.${n.slice(6)}` : `${n.slice(0, 4)}.${n.slice(4)}`;
-      setPath(t.dataset.path, t.value); queueSave();
-    }
-  }
+  if (t.id === 'photoInput' && t.files[0]) uploadPhoto(t.files[0]);
 });
 document.addEventListener('submit', async (e) => {
   e.preventDefault();

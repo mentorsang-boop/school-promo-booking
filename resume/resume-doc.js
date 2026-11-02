@@ -1,9 +1,9 @@
-// 학교 양식(이력서_학번_성명.hwp)을 화면·인쇄·PDF용 A4 HTML로 옮긴 파일
+// 화면·인쇄·PDF에 함께 쓰는 이력서 A4 문서 (스탠다드 디자인). 입력한 줄과 항목만 출력한다.
 window.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 window.newResume = (profile) => ({
-  applyField: '', name: profile?.name || '', birth: '', mobile: '', address: '인천광역시 ', homePhone: '', email: '',
-  eduPeriod: '2026.03.06.~2026.12.30.', eduSchool: '인천산업정보학교', major: profile?.dept || '', gradStatus: '수료예정', edu2Period: '', edu2School: '',
+  applyField: '', name: profile?.name || '', birth: '', mobile: '', address: '', addressBase: '', addressDetail: '', homePhone: '', email: '',
+  eduPeriod: '2026.03.06~2026.12.30', eduSchool: '인천산업정보학교', major: profile?.dept || '', gradStatus: '수료예정', edu2Period: '', edu2School: '',
   licenses: Array.from({ length: 4 }, () => ({ date: '', name: '', org: '' })),
   awards: Array.from({ length: 5 }, () => ({ from: '', to: '', text: '', org: '' })),
   careers: Array.from({ length: 4 }, () => ({ from: '', to: '', place: '', desc: '' })),
@@ -12,49 +12,39 @@ window.newResume = (profile) => ({
   intro: { growth: '', personality: '', school: '', motivation: '' },
 });
 
-const range = (r) => `${esc(r.from)}${r.from || r.to ? ' ~ ' : '~'}${esc(r.to)}`;
+const tidy = (s) => String(s || '').replace(/\.(?=~|$)/g, '');
+const period = (p) => esc(tidy(p).replace('~', ' ~ '));
+const range = (r) => esc(tidy(r.from)) + (r.to && r.to !== r.from ? ` ~ ${esc(tidy(r.to))}` : '');
+const item = (when, main, sub) => `<div class="item"><div class="when">${when}</div><div><b>${esc(main)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>`;
+const sec = (title, rows) => (rows.length ? `<section class="sec"><h2>${title}</h2><div>${rows.join('')}</div></section>` : '');
 
 window.resumeDocHTML = (d, photoUrl) => {
   const [y, m, day] = (d.writeDate || '').split('-');
-  return `<section class="a4 page1"><table>
-  <colgroup><col style="width:6.6%"><col style="width:14.7%"><col style="width:12.1%"><col style="width:33%"><col style="width:5.7%"><col style="width:4.6%"><col style="width:23.3%"></colgroup>
-  <tr style="height:52px"><td class="photo-cell" colspan="2" rowspan="5"><div style="${photoUrl ? `background-image:url('${photoUrl}')` : ''}"></div></td>
-    <td class="title" colspan="2"><span>이 력 서</span></td><th colspan="2">지원분야</th><td>${esc(d.applyField)}</td></tr>
-  <tr><th rowspan="2">성명</th><td rowspan="2" style="font-size:16px">${esc(d.name)}</td><th colspan="2">생년월일</th><td>${esc(d.birth)}</td></tr>
-  <tr><th colspan="2">휴대번호</th><td>${esc(d.mobile)}</td></tr>
-  <tr><th rowspan="2">주소</th><td class="l" rowspan="2">${esc(d.address)}</td><th colspan="2">집 번호</th><td>${esc(d.homePhone)}</td></tr>
-  <tr><th colspan="2">E-mail</th><td style="font-size:12px">${esc(d.email)}</td></tr>
-  <tr><th class="vert" rowspan="3">학력</th><th colspan="2">재학기간</th><th>학 교 명</th><th colspan="2">전공분야</th><td>${esc(d.major)}</td></tr>
-  <tr><td colspan="2" style="font-size:12.5px">${esc(d.eduPeriod)}</td><td>${esc(d.eduSchool)}</td><th colspan="2" rowspan="2">졸업여부</th><td rowspan="2">${esc(d.gradStatus)}</td></tr>
-  <tr><td colspan="2" style="font-size:12.5px">${esc(d.edu2Period)}</td><td>${esc(d.edu2School)}</td></tr>
-  <tr><th class="vert" rowspan="5">자격<br>및<br>면허</th><th colspan="2">취득일</th><th colspan="3">자격 및 면허증 명</th><th>발급기관</th></tr>
-  ${d.licenses.map((r) => `<tr><td colspan="2">${esc(r.date)}</td><td class="l" colspan="3">${esc(r.name)}</td><td>${esc(r.org)}</td></tr>`).join('')}
-  <tr><th class="vert" rowspan="6">수상<br>및<br>활동<br>경력</th><th colspan="2">일 자</th><th colspan="3">수 상 내 용</th><th>기관</th></tr>
-  ${d.awards.map((r) => `<tr><td colspan="2">${range(r)}</td><td class="l" colspan="3">${esc(r.text)}</td><td>${esc(r.org)}</td></tr>`).join('')}
-  <tr><th class="vert" rowspan="5">경력<br>사항</th><th colspan="2">기 간</th><th colspan="2">근 무 처</th><th colspan="2">직위 및 근무내용</th></tr>
-  ${d.careers.map((r) => `<tr><td colspan="2">${range(r)}</td><td colspan="2">${esc(r.place)}</td><td colspan="2">${esc(r.desc)}</td></tr>`).join('')}
-  <tr><th class="vert" rowspan="5">동아리<br>활동 및<br>봉사<br>활동</th><th colspan="2">기 간</th><th colspan="2">활 동 명</th><th colspan="2">내 용</th></tr>
-  ${d.clubs.map((r) => `<tr><td colspan="2">${range(r)}</td><td class="l" colspan="2">${esc(r.name)}</td><td colspan="2">${esc(r.desc)}</td></tr>`).join('')}
-</table>
-<div class="sign"><p>위 사항은 사실과 틀림없음을 증명함.</p><p>${esc(y || '2026')}년 &nbsp; ${esc(m || '')}월 &nbsp; ${esc(day || '')}일</p></div>
-<div class="author">작성자 <u>${esc(d.name)}</u> (서명)</div>
-<div class="to"><b>${esc(d.company) || '&nbsp;'}</b> 귀하</div>
-</section>
-<section class="a4 page2"><p class="intro-title">[자 기 소 개 서]</p><table class="intro">
-  <tr><th>성장<br>과정</th><td>${esc(d.intro.growth)}</td></tr>
-  <tr><th>성격의<br>장·단점</th><td>${esc(d.intro.personality)}</td></tr>
-  <tr><th>학창시절<br>및<br>사회경험</th><td>${esc(d.intro.school)}</td></tr>
-  <tr><th>지원동기<br>및<br>입사 후<br>포부</th><td>${esc(d.intro.motivation)}</td></tr>
-</table></section>`;
+  const contact = [['생년월일', d.birth], ['휴대번호', d.mobile], ['집 번호', d.homePhone], ['E-mail', d.email], ['주소', d.address]].filter((x) => String(x[1] || '').trim());
+  const edu = [];
+  if (d.eduSchool || d.eduPeriod) edu.push(item(period(d.eduPeriod), d.eduSchool, [d.major, d.gradStatus].filter(Boolean).join(' · ')));
+  if (d.edu2School || d.edu2Period) edu.push(item(period(d.edu2Period), d.edu2School, '원적교'));
+  const intro = [['성장 과정', d.intro.growth], ['성격의 장·단점', d.intro.personality], ['학창시절 및 사회경험', d.intro.school], ['지원동기 및 입사 후 포부', d.intro.motivation]];
+  return `<section class="a4"><header class="hd"><div class="id"><div><div class="name">${esc(d.name)}</div>${d.applyField ? `<div class="field-to">지원분야 · ${esc(d.applyField)}</div>` : ''}</div>
+    <ul class="contact">${contact.map((x) => `<li><b>${x[0]}</b><i>${esc(x[1])}</i></li>`).join('')}</ul></div>
+    <div class="ph" style="${photoUrl ? `background-image:url('${photoUrl}')` : ''}"></div></header>
+  <div class="body">${sec('학력', edu)}
+    ${sec('자격 및 면허', d.licenses.filter((r) => r.date || r.name || r.org).map((r) => item(esc(tidy(r.date)), r.name, r.org)))}
+    ${sec('수상 및 활동 경력', d.awards.filter((r) => r.from || r.to || r.text || r.org).map((r) => item(range(r), r.text, r.org)))}
+    ${sec('경력 사항', d.careers.filter((r) => r.from || r.to || r.place || r.desc).map((r) => item(range(r), r.place, r.desc)))}
+    ${sec('동아리 및 봉사 활동', d.clubs.filter((r) => r.from || r.to || r.name || r.desc).map((r) => item(range(r), r.name, r.desc)))}</div>
+  <footer class="foot"><p>위 사항은 사실과 틀림없음을 증명합니다.</p><p>${esc(y || '')}년 ${m ? +m : ''}월 ${day ? +day : ''}일 &nbsp; 작성자 ${esc(d.name)} (서명)</p><p class="to">${esc(d.company)} 귀하</p></footer></section>
+<section class="a4 p2"><header class="hd"><div class="doc-title">자기소개서</div><div class="doc-sub">${esc(d.name)}${d.applyField ? ` · 지원분야 ${esc(d.applyField)}` : ''}</div></header>
+  <div class="body">${intro.filter((x) => String(x[1] || '').trim()).map((x) => `<section class="sec"><h2>${x[0]}</h2><p>${esc(x[1])}</p></section>`).join('')}</div></section>`;
 };
 
 // 내용이 많아 A4를 넘치면 글자 크기를 줄여 한 쪽 안에 맞춘다
 window.fitPages = (root) => {
   root.querySelectorAll('.a4').forEach((page) => {
-    for (let size = 13.5; size >= 9; size -= 0.5) {
+    const body = page.querySelector('.body');
+    for (let size = 14.5; size >= 8.5; size -= 0.5) {
       page.style.fontSize = size + 'px';
-      if (page.scrollHeight <= page.clientHeight) break;
-      if (page.classList.contains('page2')) page.querySelectorAll('.intro td').forEach((c) => { c.style.height = 'auto'; });
+      if (body.scrollHeight <= body.clientHeight && page.scrollHeight <= page.clientHeight) break;
     }
   });
 };
