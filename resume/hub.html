@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>업무 허브 | 인천산업정보학교</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .hub-group { display: grid; gap: 10px; }
+  .hub-group h2 { font-size: 1.0625rem; color: var(--ink-2); }
+  .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .hub-card { display: grid; gap: 4px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); text-decoration: none; color: inherit; }
+  .hub-card:hover { border-color: var(--brand); }
+  .hub-card b { font-size: 1.0625rem; color: var(--brand-900); }
+  .hub-card span { font-size: .8125rem; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<header class="topbar"><div class="wrap"><div class="brand"><img src="logo.svg" alt="인천산업정보학교"><span>업무 허브</span></div></div></header>
+<main class="wrap page">
+  <div class="head"><h1>어디로 들어갈까요?</h1></div>
+  <section class="hub-group"><h2>수업</h2><div class="hub-grid">
+    <a class="hub-card" href="https://bakery-flea-pos.vercel.app"><b>제빵 플리마켓 POS</b><span>매장 운영, 주문, 근무, 매출</span></a>
+  </div></section>
+  <section class="hub-group"><h2>업무</h2><div class="hub-grid">
+    <a class="hub-card" href="https://mentorsang-boop.github.io/school-promo-booking/"><b>홍보 예약 시스템</b><span>학교 홍보 일정과 예약 관리</span></a>
+    <a class="hub-card" href="index.html#teacher"><b>이력서 작성 시스템</b><span>학생 이력서 확인, 피드백, 수정</span></a>
+  </div></section>
+</main>
+</body>
+</html>
