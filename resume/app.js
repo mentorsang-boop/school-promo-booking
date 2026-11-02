@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.5';
+const VERSION = '1.6';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];

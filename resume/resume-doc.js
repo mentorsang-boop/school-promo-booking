@@ -33,18 +33,24 @@ window.resumeDocHTML = (d, photoUrl) => {
     ${sec('수상 및 활동 경력', d.awards.filter((r) => r.from || r.to || r.text || r.org).map((r) => item(range(r), r.text, r.org)))}
     ${sec('경력 사항', d.careers.filter((r) => r.from || r.to || r.place || r.rank || r.desc).map((r) => item(range(r), r.place, [r.rank, r.desc].filter(Boolean).join(' · '))))}
     ${sec('동아리 및 봉사 활동', d.clubs.filter((r) => r.from || r.to || r.name || r.desc).map((r) => item(range(r), r.name, r.desc)))}</div>
-  <footer class="foot"><p>위 사항은 사실과 틀림없음을 증명합니다.</p><p>${esc(y || '')}년 ${m ? +m : ''}월 ${day ? +day : ''}일 &nbsp; 작성자 ${esc(d.name)} (서명)</p><p class="to">${esc(d.company)} 귀하</p></footer></section>
+  <footer class="foot"><p>위 사항은 사실과 틀림없음을 증명합니다.</p><p class="date">${esc(y || '')}년 ${m ? +m : ''}월 ${day ? +day : ''}일</p><p class="author">작성자 <b>${esc(d.name)}</b> (서명)</p><p class="to"><b>${esc(d.company)}</b> 귀하</p></footer></section>
 <section class="a4 p2"><header class="hd"><div class="doc-title">자기소개서</div><div class="doc-sub">${esc(d.name)}${d.applyField ? ` · 지원분야 ${esc(d.applyField)}` : ''}</div></header>
   <div class="body">${intro.filter((x) => String(x[1] || '').trim()).map((x) => `<section class="sec"><h2>${x[0]}</h2><p>${esc(x[1])}</p></section>`).join('')}</div></section>`;
 };
 
-// 내용이 많아 A4를 넘치면 글자 크기를 줄여 한 쪽 안에 맞춘다
+// 내용 양에 맞춰 글자 크기와 항목 간격을 조절해 한 쪽을 알맞게 채운다
 window.fitPages = (root) => {
   root.querySelectorAll('.a4').forEach((page) => {
     const body = page.querySelector('.body');
-    for (let size = 14.5; size >= 8.5; size -= 0.5) {
+    let size = 17;
+    body.style.gap = '';
+    for (; size >= 8.5; size -= 0.5) {
       page.style.fontSize = size + 'px';
       if (body.scrollHeight <= body.clientHeight && page.scrollHeight <= page.clientHeight) break;
     }
+    const last = page.lastElementChild.getBoundingClientRect();
+    const spare = page.getBoundingClientRect().bottom - 52 - last.bottom;
+    const count = body.children.length;
+    if (spare > 0 && count) body.style.gap = `calc(1.5em + ${Math.min(spare / count, size * 2.5)}px)`;
   });
 };

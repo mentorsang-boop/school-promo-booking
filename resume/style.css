@@ -157,15 +157,19 @@ table.data .lack { max-width: 260px; color: var(--ink-2); font-size: .75rem; }
 .a4 .contact li { display: flex; gap: 8px; }
 .a4 .contact b { flex: none; width: 58px; font-weight: 700; }
 .a4 .contact i { font-style: normal; }
-.a4 .body { flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 1.5em; align-content: start; }
+.a4 .body { flex: 0 1 auto; min-height: 0; overflow: hidden; display: grid; gap: 1.5em; align-content: start; }
 .a4 .sec h2 { color: var(--c); font-size: 1.1em; font-weight: 700; border-bottom: 1px solid var(--rule); padding-bottom: 5px; margin-bottom: 4px; }
 .a4 .item { display: grid; grid-template-columns: 11.5em minmax(0, 1fr); gap: 12px; padding: 7px 0; }
 .a4 .when { color: var(--cv-sub); font-size: .9em; font-variant-numeric: tabular-nums; }
 .a4 .item b { font-weight: 600; }
 .a4 .item span { color: var(--cv-sub); }
 .a4 .item span::before { content: " · "; }
-.a4 .foot { flex: none; text-align: center; font-size: .86em; }
-.a4 .foot .to { font-size: 1.28em; font-weight: 700; margin-top: 8px; }
+.a4 .foot { flex: none; margin-top: 1.6em; font-size: .95em; text-align: center; }
+.a4 .foot .date { margin-top: 1em; }
+.a4 .foot .author { margin-top: 1em; text-align: right; }
+.a4 .foot .author b { font-weight: 600; letter-spacing: .15em; margin: 0 .6em; }
+.a4 .foot .to { margin-top: 1.2em; text-align: right; font-size: 1.15em; }
+.a4 .foot .to b { font-weight: 700; }
 .a4.p2 .hd { display: block; }
 .a4 .doc-title { font-size: 1.65em; font-weight: 800; }
 .a4 .doc-sub { color: var(--cv-sub); font-size: .86em; }
