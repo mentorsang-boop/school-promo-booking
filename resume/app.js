@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.4';
+const VERSION = '1.5';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -136,7 +136,7 @@ function editForm() {
   </div>${fbBlock('학력')}</section>
   <section class="card"><h2>자격 및 면허</h2><div class="rows">${d.licenses.map((_, i) => `<div class="entry-3">${input(`licenses.${i}.date`, '취득일', DATE)}${input(`licenses.${i}.name`, '자격 및 면허증 명')}${input(`licenses.${i}.org`, '발급기관')}</div>`).join('<hr style="border:0;border-top:1px solid var(--line);margin:0;width:100%">')}</div>${fbBlock('자격 및 면허')}</section>
   <section class="card"><h2>수상 및 활동 경력</h2><div class="rows">${d.awards.map((_, i) => periodRow('awards', i, 'text', '내용', 'org', '기관')).join('')}</div>${fbBlock('수상 및 활동')}</section>
-  <section class="card"><h2>경력 사항</h2><div class="rows">${d.careers.map((_, i) => periodRow('careers', i, 'place', '근무처', 'desc', '직위 및 근무내용')).join('')}</div>${fbBlock('경력 사항')}</section>
+  <section class="card"><h2>경력 사항</h2><div class="rows">${d.careers.map((_, i) => `<div class="entry-4 career">${input(`careers.${i}.from`, '시작', DATE)}${input(`careers.${i}.to`, '종료', DATE)}${input(`careers.${i}.place`, '근무처', { cls: 'wide' })}${input(`careers.${i}.rank`, '직급', { cls: 'wide' })}${input(`careers.${i}.desc`, '업무내용', { cls: 'full-row' })}</div>`).join('')}</div>${fbBlock('경력 사항')}</section>
   <section class="card"><h2>동아리 활동 및 봉사 활동</h2><div class="rows">${d.clubs.map((_, i) => periodRow('clubs', i, 'name', '활동명', 'desc', '내용')).join('')}</div>${fbBlock('동아리·봉사')}</section>
   <section class="card"><h2>자기소개서</h2>${INTRO.map(([k, label]) => `<div class="field"><label for="i-intro.${k}">${label} <span class="req">*</span></label>
     <textarea id="i-intro.${k}" data-path="intro.${k}" maxlength="${INTRO_MAX}">${esc(d.intro[k])}</textarea><span class="hint" data-count="intro.${k}">${d.intro[k].length} / ${INTRO_MAX}자</span>${fbBlock(label)}</div>`).join('')}</section>

@@ -6,7 +6,7 @@ window.newResume = (profile) => ({
   eduPeriod: '2026.03.06~2026.12.30', eduSchool: '인천산업정보학교', major: profile?.dept || '', gradStatus: '수료예정', edu2Period: '', edu2School: '',
   licenses: Array.from({ length: 4 }, () => ({ date: '', name: '', org: '' })),
   awards: Array.from({ length: 5 }, () => ({ from: '', to: '', text: '', org: '' })),
-  careers: Array.from({ length: 4 }, () => ({ from: '', to: '', place: '', desc: '' })),
+  careers: Array.from({ length: 4 }, () => ({ from: '', to: '', place: '', rank: '', desc: '' })),
   clubs: Array.from({ length: 4 }, () => ({ from: '', to: '', name: '', desc: '' })),
   writeDate: '', company: '',
   intro: { growth: '', personality: '', school: '', motivation: '' },
@@ -31,7 +31,7 @@ window.resumeDocHTML = (d, photoUrl) => {
   <div class="body">${sec('학력', edu)}
     ${sec('자격 및 면허', d.licenses.filter((r) => r.date || r.name || r.org).map((r) => item(esc(tidy(r.date)), r.name, r.org)))}
     ${sec('수상 및 활동 경력', d.awards.filter((r) => r.from || r.to || r.text || r.org).map((r) => item(range(r), r.text, r.org)))}
-    ${sec('경력 사항', d.careers.filter((r) => r.from || r.to || r.place || r.desc).map((r) => item(range(r), r.place, r.desc)))}
+    ${sec('경력 사항', d.careers.filter((r) => r.from || r.to || r.place || r.rank || r.desc).map((r) => item(range(r), r.place, [r.rank, r.desc].filter(Boolean).join(' · '))))}
     ${sec('동아리 및 봉사 활동', d.clubs.filter((r) => r.from || r.to || r.name || r.desc).map((r) => item(range(r), r.name, r.desc)))}</div>
   <footer class="foot"><p>위 사항은 사실과 틀림없음을 증명합니다.</p><p>${esc(y || '')}년 ${m ? +m : ''}월 ${day ? +day : ''}일 &nbsp; 작성자 ${esc(d.name)} (서명)</p><p class="to">${esc(d.company)} 귀하</p></footer></section>
 <section class="a4 p2"><header class="hd"><div class="doc-title">자기소개서</div><div class="doc-sub">${esc(d.name)}${d.applyField ? ` · 지원분야 ${esc(d.applyField)}` : ''}</div></header>

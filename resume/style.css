@@ -91,6 +91,9 @@ h1, h2, h3 { line-height: 1.3; letter-spacing: -.02em; }
 .entry .form-grid { gap: 10px; }
 .entry-3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr); gap: 10px; }
 .entry-4 { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1.5fr) minmax(0, 1fr); gap: 10px; }
+.entry-4 .full-row { grid-column: 1 / -1; }
+.career { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.career:last-child { padding-bottom: 0; border-bottom: 0; }
 @media (max-width: 720px) { .entry-3 { grid-template-columns: minmax(0, 1fr); } .entry-4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .entry-4 .wide { grid-column: 1 / -1; } }
 
 /* 저장 상태와 주요 동작을 항상 보이게 하는 하단 바 */
