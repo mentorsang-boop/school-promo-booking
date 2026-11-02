@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.9';
+const VERSION = '1.10';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -103,6 +103,9 @@ const rangeInput = (path, label) => {
 };
 
 /* 항목 바로 아래에 붙는 피드백: 교사는 내용을 보면서 쓰고, 학생은 고칠 곳에서 바로 읽는다 */
+const RESPONSE = { edited: '수정했어요', kept: '그대로 둘게요' };
+const unanswered = () => state.feedbacks.filter((f) => f.sent_at && !f.response);
+const fbNoticeHTML = () => (unanswered().length ? `아직 답하지 않은 피드백이 <b>${unanswered().length}건</b> 있습니다. 각 피드백에서 수정했는지, 그대로 둘지 골라 주세요.` : '모든 피드백에 답했습니다.');
 const SCALARS = {
   '기본 정보': [['applyField', '지원분야'], ['name', '성명'], ['birth', '생년월일'], ['mobile', '휴대번호'], ['addressBase', '주소'], ['addressDetail', '상세주소'], ['homePhone', '집 번호'], ['email', 'E-mail']],
   학력: [['eduPeriod', '재학기간'], ['eduSchool', '학교명'], ['edu2Period', '원적교 재학기간'], ['edu2School', '원적교'], ['major', '전공분야'], ['gradStatus', '졸업여부']],
@@ -139,8 +142,8 @@ function fbList(section) {
   const items = state.feedbacks.filter((f) => f.section === section || (section === '전체' && !SECTIONS.includes(f.section)));
   return items.map((f) => {
     const status = isTeacher()
-      ? `<div class="row between">${!f.sent_at ? '<span class="badge off">전송 전</span>' : f.done_at ? `<span class="badge ok">학생 수정 완료 ${when(f.done_at)}</span>` : '<span class="badge warn">학생 미확인</span>'}<button class="btn-link" data-act="delFb" data-v="${f.id}">삭제</button></div>`
-      : (f.done_at ? `<div class="row"><span class="badge ok">수정 완료 ${when(f.done_at)}</span><button class="btn-link" data-act="fbDone" data-v="${f.id}">취소</button></div>` : `<div><button class="btn btn-primary btn-sm" data-act="fbDone" data-v="${f.id}">수정했어요</button></div>`);
+      ? `<div class="row between">${!f.sent_at ? '<span class="badge off">전송 전</span>' : f.response ? `<span class="badge ok">학생: ${RESPONSE[f.response]} ${when(f.done_at)}</span>` : '<span class="badge warn">학생 응답 전</span>'}<button class="btn-link" data-act="delFb" data-v="${f.id}">삭제</button></div>`
+      : (f.response ? `<div class="row"><span class="badge ok">${RESPONSE[f.response]} ${when(f.done_at)}</span><button class="btn-link" data-act="fbChoice" data-v="${f.id}:">다시 선택</button></div>` : `<div class="row"><button class="btn btn-primary btn-sm" data-act="fbChoice" data-v="${f.id}:edited">수정했어요</button><button class="btn btn-sm" data-act="fbChoice" data-v="${f.id}:kept">그대로 둘게요</button></div>`);
     return `<article class="fb"><div class="row between"><b class="small">${f.round ? `${f.round}차 ` : ''}선생님 피드백</b><span class="hint">${when(f.created_at)}</span></div><p>${esc(f.body)}</p>${changesHTML(f)}${status}</article>`;
   }).join('');
 }
@@ -192,20 +195,22 @@ function viewEditor() {
   const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 첨삭 요청됨</span>` : `<span class="badge">${round}차 작성 중</span>`;
   const head = `<div class="head"><div>${teacher ? '<button class="btn-link" data-act="back">← 학생 목록</button>' : ''}<h1>${esc(owner.name)} 이력서</h1><p class="muted small">${esc(owner.login_id)}${owner.dept ? ' · ' + esc(owner.dept) : ''} · 진행률 ${pct}%</p></div>${badge}</div>
     <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
-  const tabs = `<div class="tabs" role="tablist">${[['edit', '작성'], ['preview', '미리보기·출력']].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const tabs = `<div class="tabs" role="tablist">${[['edit', '작성'], ['review', `첨삭${state.feedbacks.length ? ` ${state.feedbacks.length}` : ''}`], ['preview', '미리보기'], ...(r.status === 'approved' ? [['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
   let body = '';
-  if (state.tab === 'edit') {
-    body = (!teacher && state.feedbacks.length ? `<div class="notice" id="fbNotice">${state.feedbacks.some((f) => !f.done_at) ? `아직 수정하지 않은 피드백이 <b>${state.feedbacks.filter((f) => !f.done_at).length}건</b> 있습니다. 해당 항목 바로 아래에서 확인하세요.` : '모든 피드백을 수정했습니다.'}</div>` : '')
+  if (state.tab === 'review') body = viewReview();
+  else if (state.tab === 'output') body = viewOutput();
+  else if (state.tab === 'edit') {
+    body = (!teacher && state.feedbacks.length ? `<div class="notice" id="fbNotice">${fbNoticeHTML()}</div>` : '')
       + (teacher && r.status === 'submitted' && round >= 3 ? '<div class="notice">3차는 마지막 첨삭입니다. 고칠 내용은 직접 수정한 뒤 최종 승인해 주세요.</div>' : '')
       + (teacher && r.status === 'draft' ? `<div class="notice">학생이 ${round}차를 작성 중입니다. 첨삭 요청이 오면 피드백을 쓸 수 있습니다.</div>` : '')
       + editForm();
   } else {
-    body = `<section class="card">${versionButtons()}${canOutput() ? '<div class="row"><button class="btn btn-primary" data-act="print">프린트</button><button class="btn" data-act="pdf">PDF 다운로드</button></div>' : `<div class="notice">${r.status === 'approved' ? '프린트와 다운로드는 완성본에서 할 수 있습니다.' : '지금은 미리보기만 가능합니다. 선생님이 승인하면 프린트와 다운로드를 할 수 있습니다.'}</div>`}
+    body = `<section class="card">${versionButtons()}<div class="notice">${r.status === 'approved' ? '프린트와 다운로드는 출력 탭에서 할 수 있습니다.' : '지금은 미리보기만 가능합니다. 선생님이 최종 승인하면 출력 탭이 열립니다.'}</div>${changeBase() ? '<p class="small"><mark class="chg">빨간 글자</mark>는 1차 첨삭 요청 이후 바뀐 내용입니다. 지운 글자는 표시되지 않습니다.</p>' : ''}
       ${missingList.length ? `<div class="notice warn">아직 비어 있는 항목: ${esc(missingList.join(', '))}</div>` : ''}
-      ${canOutput() ? '<p class="hint">휴대폰에서 프린트가 어려우면 PDF로 내려받아 사용하세요.</p>' : ''}</section><div class="preview" id="preview"></div>`;
+</section><div class="preview" id="preview"></div>`;
   }
   const submit = teacher ? reviewButtons(r)
-    : r.status === 'approved' ? '<button class="btn btn-primary" data-act="tab" data-v="preview">프린트·다운로드</button>'
+    : r.status === 'approved' ? '<button class="btn btn-primary" data-act="tab" data-v="output">프린트·다운로드</button>'
     : r.status === 'submitted' ? '<button class="btn" disabled>선생님 첨삭 중</button>'
     : `<button class="btn btn-primary" data-act="submit">${round}차 첨삭 요청</button>`;
   const dock = `<div class="dock"><div class="wrap"><span class="save-state" id="saveState"></span>${submit}</div></div>`;
@@ -213,9 +218,29 @@ function viewEditor() {
 }
 
 /* 차수 보기와 승인 */
-const canOutput = () => state.resume?.status === 'approved' && !state.versionView;
+const canOutput = () => state.resume?.status === 'approved' && state.tab === 'output';
+// 미리보기에서는 1차 제출본과 달라진 곳을 표시한다
+const changeBase = () => {
+  if (state.tab !== 'preview' || state.versionView === 1) return null;
+  const first = state.versions?.find((v) => v.round === 1);
+  return first ? mergeDoc(first.data, state.owner) : null;
+};
+function viewOutput() {
+  return `<section class="card"><div class="row"><button class="btn btn-primary" data-act="print">프린트</button><button class="btn" data-act="pdf">PDF 다운로드</button></div>
+    <p class="hint">휴대폰에서 프린트가 어려우면 PDF로 내려받아 사용하세요. 회사가 바뀌면 작성 탭에서 회사명을 고친 뒤 다시 출력하세요.</p></section><div class="preview" id="preview"></div>`;
+}
+function viewReview() {
+  const blocks = SECTIONS.map((section) => {
+    const rows = section === '전체' ? [] : Object.entries(sectionValues(section, state.doc)).filter(([, v]) => v.trim());
+    const hasFb = state.feedbacks.some((f) => f.section === section || (section === '전체' && !SECTIONS.includes(f.section)));
+    if (!hasFb && !(canFeedback() && (rows.length || section === '전체'))) return '';
+    return `<section class="card"><h2>${section === '전체' ? '이력서 전체' : esc(section)}</h2>${rows.length ? `<dl class="review-rows">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}${fbBlock(section)}</section>`;
+  }).join('');
+  const notice = !isTeacher() && state.feedbacks.length ? `<div class="notice" id="fbNotice">${fbNoticeHTML()}</div>` : '';
+  return notice + (blocks || '<section class="card"><p class="muted">아직 첨삭 내용이 없습니다.</p></section>');
+}
 const shownDoc = () => {
-  const v = state.versions?.find((x) => x.round === state.versionView);
+  const v = state.tab === 'preview' && state.versions?.find((x) => x.round === state.versionView);
   return v ? mergeDoc(v.data, state.owner) : state.doc;
 };
 function versionButtons() {
@@ -245,7 +270,7 @@ function applyLocks() {
 /* 출력 */
 function renderPaper() {
   const paper = $('#paper');
-  paper.innerHTML = resumeDocHTML(shownDoc(), state.photoUrl);
+  paper.innerHTML = resumeDocHTML(shownDoc(), state.photoUrl, changeBase());
   fitPages(paper);
 }
 function renderPreview() {
@@ -336,6 +361,7 @@ async function openResume(owner) {
   state.versions = versions || [];
   await Promise.all([loadPhoto(), loadFeedbacks()]);
   state.view = 'editor';
+  if (isTeacher() && r.status === 'submitted') state.tab = 'review';
   render();
   showSave(`마지막 저장 ${when(r.updated_at)}`);
 }
@@ -404,7 +430,7 @@ function studentRows() {
 function downloadExcel() {
   const rows = studentRows().map((x) => ({
     학번: x.s.login_id, 이름: x.s.name, 학과: x.doc?.major || x.s.dept, 상태: statusText(x), '진행률(%)': x.pct,
-    지원분야: x.doc?.applyField || '', 회사명: x.doc?.company || '', '미입력 항목': x.lack.join(', '), '피드백 수': x.fb, '학생 수정 완료': x.fbDone,
+    지원분야: x.doc?.applyField || '', 회사명: x.doc?.company || '', '미입력 항목': x.lack.join(', '), '피드백 수': x.fb, '학생 응답': x.fbDone,
     '최근 저장': x.updated ? new Date(x.updated).toLocaleString('ko-KR') : '', 승인일: x.key === 'done' && x.approved ? new Date(x.approved).toLocaleString('ko-KR') : '',
   }));
   if (!rows.length) { toast('내려받을 학생이 없습니다.'); return; }
@@ -422,15 +448,22 @@ function viewTeacher() {
   const list = rows.filter((x) => match(x) && (!q || x.s.name.toLowerCase().includes(q) || x.s.login_id.includes(q)));
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
   const item = (x) => `<tr><td>${esc(x.s.login_id)}</td><td class="strong">${esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
-    <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="lack">${esc(x.lack.join(', ')) || (x.doc ? '없음' : '-')}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 완료</span>` : '-'}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.key === 'done' ? when(x.approved) : '-'}</td>
+    <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="lack">${esc(x.lack.join(', ')) || (x.doc ? '없음' : '-')}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.key === 'done' ? when(x.approved) : '-'}</td>
     <td class="nowrap">${x.s.status === 'approved' ? `<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${x.s.id}">열기</button>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}</td></tr>`;
   return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님</p></div><div class="row"><button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none'), '작성 중·시작 전')}${stat('review', count('review'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="table-scroll"><table class="data"><thead><tr><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력 항목</th><th>피드백</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="10" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     <section class="card"><div class="row between"><h2>텔레그램 완료 알림</h2><span id="tgState">${tgLabel()}</span></div>
-      <ol class="small muted" style="margin:0;padding-left:20px"><li>텔레그램에서 @BotFather에게 /newbot을 보내 봇을 만들고 토큰을 복사합니다.</li><li>토큰을 아래에 넣어 저장합니다.</li><li>만든 봇에게 아무 메시지나 보낸 뒤 "알림 연결"을 누릅니다.</li></ol>
-      <div class="field"><label for="tgToken">봇 토큰</label><input id="tgToken" autocomplete="off"></div>
-      <div class="row"><button class="btn" data-act="tgSave">토큰 저장</button><button class="btn btn-primary" data-act="tgConnect">알림 연결</button></div></section>`);
+      ${state.tg?.hasChat ? '<p class="small muted">연결이 끝났습니다. 학생이 첨삭을 요청하면 텔레그램으로 알림이 옵니다. 받는 곳을 바꿀 때만 아래 순서를 다시 진행하세요.</p>' : '<p class="small muted">휴대폰에 텔레그램을 설치하고 가입한 뒤, 이 화면을 PC에 띄워 놓고 따라 하면 쉽습니다. 5분이면 끝납니다.</p>'}
+      <ol class="tg-steps">
+        <li><b>알림 봇 만들기</b><span>휴대폰 텔레그램 맨 위 검색창에 <code>BotFather</code>를 검색해 파란 체크 표시가 있는 계정을 엽니다. 아래 <b>시작</b>을 누르고 메시지 칸에 <code>/newbot</code>을 보냅니다.</span></li>
+        <li><b>이름 두 번 보내기</b><span>이름을 물으면 <code>이력서 알림</code>을 보냅니다. 아이디를 물으면 영어로 <code>bot</code>으로 끝나게 보냅니다. 예: <code>incheon_resume_2026_bot</code> (이미 있다고 나오면 숫자를 바꾸세요.)</span></li>
+        <li><b>토큰을 넣고 저장하기</b><span>답장에 긴 글자 <code>123456789:ABC...</code>가 옵니다. 이것이 토큰입니다. 복사해 아래 칸에 붙여 넣고 <b>토큰 저장</b>을 누르세요. 다른 사람에게 보여 주지 마세요.</span>
+          <div class="field"><label for="tgToken">봇 토큰</label><input id="tgToken" autocomplete="off"></div><div><button class="btn" data-act="tgSave">토큰 저장</button></div></li>
+        <li><b>내 봇과 연결하기</b><span>같은 답장에 있는 <code>t.me/...</code> 링크를 눌러 봇을 열고 <b>시작</b>을 누른 뒤, <code>안녕</code>처럼 아무 말이나 보냅니다. 그다음 아래 버튼을 누르세요.</span>
+          <div><button class="btn btn-primary" data-act="tgConnect">알림 연결</button></div></li>
+        <li><b>확인하기</b><span>봇에게서 "알림이 연결되었습니다" 메시지가 오면 끝입니다.</span></li>
+      </ol></section>`);
 }
 
 function render() {
@@ -439,7 +472,7 @@ function render() {
   $('#app').innerHTML = view;
   $('#app').className = state.view === 'teacher' ? 'wide' : '';
   document.body.classList.toggle('no-print', !(state.view === 'editor' && canOutput()));
-  if (state.view === 'editor') { showSave(state.saveState); if (state.tab === 'preview') renderPreview(); else applyLocks(); }
+  if (state.view === 'editor') { showSave(state.saveState); if (state.tab === 'preview' || state.tab === 'output') renderPreview(); else applyLocks(); }
   window.scrollTo(0, y);
 }
 
@@ -480,6 +513,7 @@ const ACT = {
     const list = missing(state.doc, !!state.photoUrl);
     if (list.length) { toast(`먼저 입력해 주세요: ${list.slice(0, 3).join(', ')}${list.length > 3 ? ` 외 ${list.length - 3}개` : ''}`); return; }
     const round = state.resume.round || 1;
+    if (round >= 2 && unanswered().length) { state.tab = 'review'; render(); window.scrollTo(0, 0); toast(`피드백 ${unanswered().length}건에 먼저 답해 주세요. 수정했어요 또는 그대로 둘게요를 고르세요.`); return; }
     if (!confirm(`${round}차 첨삭을 요청할까요? 선생님이 피드백을 보내기 전까지는 수정할 수 없습니다.`)) return;
     if (!(await save())) return;
     try {
@@ -509,7 +543,7 @@ const ACT = {
     const patch = { next: { status: 'draft', round: round + 1 }, approve: { status: 'approved', approved_at: new Date().toISOString() }, reopen: { status: 'draft', approved_at: null } }[kind];
     const { data, error } = await sb.from('resumes').update(patch).eq('user_id', r.user_id).eq('version', state.resume.version).select().maybeSingle();
     if (error || !data) { toast('처리하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
-    state.resume = data; state.versionView = null; render();
+    state.resume = data; state.versionView = null; if (state.tab === 'output') state.tab = 'edit'; render();
     toast({ next: '피드백을 전송했습니다.', approve: '최종 승인했습니다.', reopen: '최종 승인을 취소했습니다.' }[kind]);
   },
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
@@ -519,14 +553,13 @@ const ACT = {
   openStudent: (id) => openResume(state.students.find((s) => s.id === id)),
   approve: async (id) => { await sb.from('resume_profiles').update({ status: 'approved' }).eq('id', id); await loadTeacher(); toast('승인했습니다.'); },
   reject: async (id) => { if (!confirm('가입을 거절할까요?')) return; await sb.from('resume_profiles').update({ status: 'rejected' }).eq('id', id); await loadTeacher(); },
-  fbDone: async (id) => {
+  fbChoice: async (v) => {
     if (state.dirty) await save();
-    const f = state.feedbacks.find((x) => String(x.id) === String(id));
-    const { error } = await sb.from('resume_feedbacks').update({ done_at: f.done_at ? null : new Date().toISOString() }).eq('id', f.id);
+    const [id, response] = v.split(':');
+    const { error } = await sb.from('resume_feedbacks').update({ response: response || null, done_at: response ? new Date().toISOString() : null }).eq('id', id);
     if (error) { toast('저장하지 못했습니다. 다시 시도해 주세요.'); return; }
     await loadFeedbacks(); refreshFb();
-    const left = state.feedbacks.filter((x) => !x.done_at).length;
-    const n = $('#fbNotice'); if (n) n.innerHTML = left ? `아직 수정하지 않은 피드백이 <b>${left}건</b> 있습니다. 해당 항목 바로 아래에서 확인하세요.` : '모든 피드백을 수정했습니다.';
+    const n = $('#fbNotice'); if (n) n.innerHTML = fbNoticeHTML();
   },
   delFb: async (id) => { await sb.from('resume_feedbacks').delete().eq('id', id); await loadFeedbacks(); refreshFb(); },
   resetPw: () => passwordModal(`${state.owner.name} 비밀번호 초기화`, async (pw) => { await api({ action: 'reset_password', user_id: state.owner.id, password: pw }); toast('비밀번호를 초기화했습니다. 학생에게 전달해 주세요.'); }),
