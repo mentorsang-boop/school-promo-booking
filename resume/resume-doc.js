@@ -5,9 +5,9 @@ window.newResume = (profile) => ({
   applyField: '', name: profile?.name || '', birth: '', mobile: '', address: '인천광역시 ', homePhone: '', email: '',
   eduPeriod: '2026.03.06.~2026.12.30.', eduSchool: '인천산업정보학교', major: profile?.dept || '', gradStatus: '수료예정', edu2Period: '', edu2School: '',
   licenses: Array.from({ length: 4 }, () => ({ date: '', name: '', org: '' })),
-  awards: ['(출결) 출결사항_', '(수상)', '(활동)', '(교육이수)', ''].map((text) => ({ from: '', to: '', text, org: '' })),
+  awards: Array.from({ length: 5 }, () => ({ from: '', to: '', text: '', org: '' })),
   careers: Array.from({ length: 4 }, () => ({ from: '', to: '', place: '', desc: '' })),
-  clubs: ['(동아리)', '(봉사)', '', ''].map((name) => ({ from: '', to: '', name, desc: '' })),
+  clubs: Array.from({ length: 4 }, () => ({ from: '', to: '', name: '', desc: '' })),
   writeDate: '', company: '',
   intro: { growth: '', personality: '', school: '', motivation: '' },
 });

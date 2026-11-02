@@ -102,11 +102,11 @@ function editForm() {
     </div></section>
   <section class="card"><h2>학력</h2><div class="form-grid">
     ${input('eduPeriod', '재학기간')}${input('eduSchool', '학교명')}
-    ${input('edu2Period', '이전 학교 재학기간', { ph: '2023.03.02.~2026.02.10.' })}${input('edu2School', '이전 학교명')}
+    ${input('edu2Period', '원적교 재학기간', { ph: '2023.03.02.~2026.02.10.' })}${input('edu2School', '원적교')}
     ${input('major', '전공분야(학과명)', { req: 1 })}${input('gradStatus', '졸업여부')}
   </div></section>
   <section class="card"><h2>자격 및 면허</h2><div class="rows">${d.licenses.map((_, i) => `<div class="entry-3">${input(`licenses.${i}.date`, '취득일', DATE)}${input(`licenses.${i}.name`, '자격 및 면허증 명')}${input(`licenses.${i}.org`, '발급기관')}</div>`).join('<hr style="border:0;border-top:1px solid var(--line);margin:0;width:100%">')}</div></section>
-  <section class="card"><h2>수상 및 활동 경력</h2><p class="hint">괄호로 시작하는 말머리는 필요에 맞게 고쳐 쓰세요.</p><div class="rows">${d.awards.map((_, i) => periodRow('awards', i, 'text', '내용', 'org', '기관')).join('')}</div></section>
+  <section class="card"><h2>수상 및 활동 경력</h2><div class="rows">${d.awards.map((_, i) => periodRow('awards', i, 'text', '내용', 'org', '기관')).join('')}</div></section>
   <section class="card"><h2>경력 사항</h2><div class="rows">${d.careers.map((_, i) => periodRow('careers', i, 'place', '근무처', 'desc', '직위 및 근무내용')).join('')}</div></section>
   <section class="card"><h2>동아리 활동 및 봉사 활동</h2><div class="rows">${d.clubs.map((_, i) => periodRow('clubs', i, 'name', '활동명', 'desc', '내용')).join('')}</div></section>
   <section class="card"><h2>자기소개서</h2>${INTRO.map(([k, label]) => `<div class="field"><label for="i-intro.${k}">${label} <span class="req">*</span></label>
