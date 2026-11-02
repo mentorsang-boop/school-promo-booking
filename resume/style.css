@@ -239,3 +239,12 @@ table.data .lack { max-width: 260px; color: var(--ink-2); font-size: .75rem; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.guide { margin: 0; padding: 10px 12px; border-left: 3px solid var(--brand); border-radius: var(--radius-sm); background: var(--brand-50); color: var(--brand-900); font-size: .8125rem; line-height: 1.6; font-weight: 400; }
+.guide b { margin-right: 4px; }
+.guide-list { margin: 6px 0 0; padding-left: 18px; }
+.guide-sort { margin-top: 8px; }
+.row-entry { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.row-del { justify-self: end; font-size: .75rem; min-height: 28px; }
+.add-row { margin-top: 10px; }
+.tab-next { display: flex; justify-content: flex-end; margin-top: 14px; }
+.form-grid .hint.full { grid-column: 1 / -1; margin: 0; }

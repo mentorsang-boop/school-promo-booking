@@ -4,10 +4,11 @@ window.esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 window.newResume = (profile) => ({
   applyField: '', name: profile?.name || '', birth: '', mobile: '', address: '', addressBase: '', addressDetail: '', homePhone: '', email: '',
   eduPeriod: '2026.03.06~2026.12.30', eduSchool: '인천산업정보학교', major: profile?.dept || '', gradStatus: '수료예정', edu2Period: '', edu2School: '',
-  licenses: Array.from({ length: 4 }, () => ({ date: '', name: '', org: '' })),
-  awards: Array.from({ length: 5 }, () => ({ from: '', to: '', text: '', org: '' })),
-  careers: Array.from({ length: 4 }, () => ({ from: '', to: '', place: '', rank: '', desc: '' })),
-  clubs: Array.from({ length: 4 }, () => ({ from: '', to: '', name: '', desc: '' })),
+  licenses: [{ date: '', name: '', org: '' }],
+  awards: [{ date: '', text: '', org: '' }],
+  activities: [{ from: '', to: '', text: '', org: '' }],
+  careers: [{ from: '', to: '', place: '', rank: '', desc: '' }],
+  clubs: [{ from: '', to: '', name: '', desc: '' }],
   writeDate: '', company: '',
   intro: { growth: '', personality: '', school: '', motivation: '' },
 });
@@ -51,7 +52,8 @@ window.resumeDocHTML = (d, photoUrl, chain) => {
     <div class="ph" style="${photoUrl ? `background-image:url('${photoUrl}')` : ''}"></div></header>
   <div class="body">${sec('학력', edu)}
     ${sec('자격 및 면허', rows('licenses', (r) => r.date || r.name || r.org, (o) => item(t((x) => tidy(o(x).date)), t((x) => o(x).name), t((x) => o(x).org))))}
-    ${sec('수상 및 활동 경력', rows('awards', (r) => r.from || r.to || r.text || r.org, (o) => item(t((x) => rangeOf(o(x))), t((x) => o(x).text), t((x) => o(x).org))))}
+    ${sec('수상 경력', rows('awards', (r) => r.date || r.text || r.org, (o) => item(t((x) => tidy(o(x).date)), t((x) => o(x).text), t((x) => o(x).org))))}
+    ${sec('활동 경력', rows('activities', (r) => r.from || r.to || r.text || r.org, (o) => item(t((x) => rangeOf(o(x))), t((x) => o(x).text), t((x) => o(x).org))))}
     ${sec('경력 사항', rows('careers', (r) => r.from || r.to || r.place || r.rank || r.desc, (o) => item(t((x) => rangeOf(o(x))), t((x) => o(x).place), t((x) => [o(x).rank, o(x).desc].filter(Boolean).join(' · ')))))}
     ${sec('동아리 및 봉사 활동', rows('clubs', (r) => r.from || r.to || r.name || r.desc, (o) => item(t((x) => rangeOf(o(x))), t((x) => o(x).name), t((x) => o(x).desc))))}</div>
   <footer class="foot"><p>위 사항은 사실과 틀림없음을 증명합니다.</p><p class="date">${esc(y || '')}년 ${m ? +m : ''}월 ${day ? +day : ''}일</p><p class="author">작성자 <b>${esc(d.name)}</b> (서명)</p><p class="to"><b>${t((x) => x.company)}</b> 귀하</p></footer></section>
