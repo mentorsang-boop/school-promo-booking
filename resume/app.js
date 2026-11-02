@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.2';
+const VERSION = '1.3';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -54,7 +54,7 @@ function shell(body, dock = '') {
 
 /* 로그인·가입 */
 function viewAuth() {
-  const teacher = location.hash === '#teacher';
+  const teacher = !!window.ADMIN_PAGE;
   const signup = state.authTab === 'signup';
   return shell(`<section class="card auth">
     <div><h1 style="font-size:1.375rem;font-weight:800">${teacher ? '교사 계정' : '학생 이력서 작성'}</h1><p class="muted small">PC와 휴대폰 어디서나 이어서 작성할 수 있습니다.</p></div>
@@ -65,11 +65,10 @@ function viewAuth() {
       ${teacher ? `<div class="field"><label for="f-code">교사 인증 코드</label><input id="f-code" name="teacher_code" autocomplete="off" required></div>` : `<div class="field"><label for="f-dept">학과</label><input id="f-dept" name="dept"></div>`}` : ''}
       <div class="field"><label for="f-pw">비밀번호${signup ? ' (8자 이상)' : ''}</label><input id="f-pw" name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></div>
       ${signup ? `<label class="check"><input type="checkbox" name="consent"><span>이력서 작성·지도를 위해 사진, 연락처, 주소, 학력·경력 등 개인정보를 수집·이용하고 담당 교사가 열람하는 데 동의합니다. 보유 기간은 수료 후 계정을 삭제할 때까지입니다.</span></label>` : ''}
-      <p class="error" id="authErr" hidden></p>
+      <p class="error" id="authErr" ${state.authMsg ? '' : 'hidden'}>${esc(state.authMsg || '')}</p>
       <button class="btn btn-primary" type="submit">${signup ? '가입 신청' : '로그인'}</button>
     </form>
     ${signup || teacher ? '' : '<p class="hint">비밀번호를 잊었다면 담당 선생님께 초기화를 요청해 주세요.</p>'}
-    ${teacher ? '<a class="small muted" href="#">학생 로그인으로 돌아가기</a>' : '<a class="small muted" href="#teacher">교사 로그인</a>'}
   </section>`);
 }
 function viewPending() {
@@ -86,8 +85,8 @@ function setPath(path, value) {
   keys.reduce((o, k) => o[k], state.doc)[last] = value;
 }
 const input = (path, label, opts = {}) => `<div class="field ${opts.cls || ''}"><label for="i-${path}">${label}${opts.req ? ' <span class="req">*</span>' : ''}</label>
-  <input id="i-${path}" data-path="${path}" value="${esc(getPath(path))}" placeholder="${esc(opts.ph || '')}" type="${opts.type || 'text'}" ${opts.date ? 'data-date="1" inputmode="numeric"' : ''} ${opts.mode ? `inputmode="${opts.mode}"` : ''}></div>`;
-const DATE = { date: true, ph: '2026.03.06' };
+  <input id="i-${path}" data-path="${path}" value="${esc(getPath(path))}" type="${opts.type || 'text'}" ${opts.date ? 'data-date="1" inputmode="numeric"' : ''} ${opts.mode ? `inputmode="${opts.mode}"` : ''}></div>`;
+const DATE = { date: true };
 
 /* 항목 바로 아래에 붙는 피드백: 교사는 내용을 보면서 쓰고, 학생은 고칠 곳에서 바로 읽는다 */
 function fbList(section) {
@@ -110,14 +109,14 @@ function editForm() {
     <div class="photo-box"><div class="photo ${state.photoUrl ? 'has' : ''}" style="${state.photoUrl ? `background-image:url('${state.photoUrl}')` : ''}">${state.photoUrl ? '' : '3×4<br>증명사진'}</div>
       <div style="display:grid;gap:6px"><label class="btn btn-soft" for="photoInput">사진 ${state.photoUrl ? '바꾸기' : '올리기'}</label><input id="photoInput" type="file" accept="image/*" hidden><span class="hint">자동으로 3:4 비율에 맞춰 잘립니다.</span></div></div>
     <div class="form-grid">
-      ${input('applyField', '지원분야', { req: 1, ph: '예: 제과제빵' })}${input('name', '성명', { req: 1 })}
-      ${input('birth', '생년월일', { req: 1, ...DATE, ph: '2008.03.15' })}${input('mobile', '휴대번호', { req: 1, type: 'tel', ph: '010-0000-0000' })}
+      ${input('applyField', '지원분야', { req: 1 })}${input('name', '성명', { req: 1 })}
+      ${input('birth', '생년월일', { req: 1, ...DATE })}${input('mobile', '휴대번호', { req: 1, type: 'tel' })}
       ${input('address', '주소', { req: 1, cls: 'full' })}
       ${input('homePhone', '집 번호', { type: 'tel' })}${input('email', 'E-mail', { req: 1, type: 'email' })}
     </div>${fbBlock('기본 정보')}</section>
   <section class="card"><h2>학력</h2><div class="form-grid">
     ${input('eduPeriod', '재학기간')}${input('eduSchool', '학교명')}
-    ${input('edu2Period', '원적교 재학기간', { ph: '2023.03.02.~2026.02.10.' })}${input('edu2School', '원적교')}
+    ${input('edu2Period', '원적교 재학기간')}${input('edu2School', '원적교')}
     ${input('major', '전공분야(학과명)', { req: 1 })}${input('gradStatus', '졸업여부')}
   </div>${fbBlock('학력')}</section>
   <section class="card"><h2>자격 및 면허</h2><div class="rows">${d.licenses.map((_, i) => `<div class="entry-3">${input(`licenses.${i}.date`, '취득일', DATE)}${input(`licenses.${i}.name`, '자격 및 면허증 명')}${input(`licenses.${i}.org`, '발급기관')}</div>`).join('<hr style="border:0;border-top:1px solid var(--line);margin:0;width:100%">')}</div>${fbBlock('자격 및 면허')}</section>
@@ -126,7 +125,7 @@ function editForm() {
   <section class="card"><h2>동아리 활동 및 봉사 활동</h2><div class="rows">${d.clubs.map((_, i) => periodRow('clubs', i, 'name', '활동명', 'desc', '내용')).join('')}</div>${fbBlock('동아리·봉사')}</section>
   <section class="card"><h2>자기소개서</h2>${INTRO.map(([k, label]) => `<div class="field"><label for="i-intro.${k}">${label} <span class="req">*</span></label>
     <textarea id="i-intro.${k}" data-path="intro.${k}" maxlength="${INTRO_MAX}">${esc(d.intro[k])}</textarea><span class="hint" data-count="intro.${k}">${d.intro[k].length} / ${INTRO_MAX}자</span>${fbBlock(label)}</div>`).join('')}</section>
-  <section class="card"><h2>제출 정보</h2><div class="form-grid">${input('company', '회사명', { req: 1, ph: '지원할 회사 이름' })}${input('writeDate', '작성일', { type: 'date' })}</div>
+  <section class="card"><h2>제출 정보</h2><div class="form-grid">${input('company', '회사명', { req: 1 })}${input('writeDate', '작성일', { type: 'date' })}</div>
     <p class="hint">지원하는 회사가 바뀌면 회사명만 고쳐서 다시 내려받으면 됩니다.</p>${fbBlock('제출 정보')}</section>
   ${isTeacher() ? '<section class="card"><h2>계정 관리</h2><div class="row"><button class="btn" data-act="resetPw">비밀번호 초기화</button><button class="btn btn-danger" data-act="delStudent">학생 계정 삭제</button></div></section>' : ''}`;
 }
@@ -280,35 +279,62 @@ async function uploadPhoto(file) {
   }
 }
 async function loadTeacher() {
-  const [p, r] = await Promise.all([
+  const [p, r, f] = await Promise.all([
     sb.from('resume_profiles').select().eq('role', 'student').order('login_id'),
     sb.from('resumes').select('user_id,data,photo_path,status,submitted_at,updated_at'),
+    sb.from('resume_feedbacks').select('student_id'),
   ]);
   state.students = p.data || [];
   state.resumes = r.data || [];
+  state.fbRows = f.data || [];
   state.view = 'teacher';
   render();
   api({ action: 'telegram_status' }).then((t) => { state.tg = t; if (state.view === 'teacher') { const el = $('#tgState'); if (el) el.innerHTML = tgLabel(); } }).catch(() => {});
 }
 const tgLabel = () => (state.tg?.hasChat ? '<span class="badge ok">연결됨</span>' : state.tg?.hasToken ? '<span class="badge warn">채팅 연결 필요</span>' : '<span class="badge off">미연결</span>');
 
-function viewTeacher() {
-  const rows = state.students.map((s) => {
+const STATUS = { pending: '승인 대기', rejected: '가입 거절', none: '시작 전', writing: '작성 중', done: '작성 완료' };
+const BADGE = { pending: 'warn', rejected: 'off', none: 'off', writing: '', done: 'ok' };
+function studentRows() {
+  return state.students.map((s) => {
     const r = state.resumes.find((x) => x.user_id === s.id);
-    const pct = r ? progress(mergeDoc(r.data, s), !!r.photo_path) : 0;
-    const key = s.status === 'pending' ? 'pending' : r?.status === 'submitted' ? 'done' : 'writing';
-    return { s, r, pct, key };
+    const doc = r ? mergeDoc(r.data, s) : null;
+    const key = s.status !== 'approved' ? s.status : !r ? 'none' : r.status === 'submitted' ? 'done' : 'writing';
+    return {
+      s, key, doc,
+      pct: doc ? progress(doc, !!r.photo_path) : 0,
+      lack: doc ? missing(doc, !!r.photo_path) : [],
+      fb: (state.fbRows || []).filter((f) => f.student_id === s.id).length,
+      updated: r?.updated_at, submitted: r?.submitted_at,
+    };
   });
+}
+function downloadExcel() {
+  const rows = studentRows().map((x) => ({
+    학번: x.s.login_id, 이름: x.s.name, 학과: x.doc?.major || x.s.dept, 상태: STATUS[x.key], '진행률(%)': x.pct,
+    지원분야: x.doc?.applyField || '', 회사명: x.doc?.company || '', '미입력 항목': x.lack.join(', '), '피드백 수': x.fb,
+    '최근 저장': x.updated ? new Date(x.updated).toLocaleString('ko-KR') : '', 완료일: x.key === 'done' && x.submitted ? new Date(x.submitted).toLocaleString('ko-KR') : '',
+  }));
+  if (!rows.length) { toast('내려받을 학생이 없습니다.'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [12, 10, 16, 10, 9, 14, 18, 40, 9, 22, 22].map((wch) => ({ wch }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '학생 현황');
+  XLSX.writeFile(wb, `이력서_학생현황_${new Date().toLocaleDateString('sv')}.xlsx`);
+}
+function viewTeacher() {
+  const rows = studentRows();
   const count = (k) => rows.filter((x) => x.key === k).length;
   const q = state.search.trim().toLowerCase();
-  const list = rows.filter((x) => (state.filter === 'all' || x.key === state.filter) && (!q || x.s.name.toLowerCase().includes(q) || x.s.login_id.includes(q)));
+  const match = (x) => state.filter === 'all' || x.key === state.filter || (state.filter === 'writing' && x.key === 'none');
+  const list = rows.filter((x) => match(x) && (!q || x.s.name.toLowerCase().includes(q) || x.s.login_id.includes(q)));
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
-  const item = ({ s, r, pct, key }) => `<div class="student"><div><strong>${esc(s.name)}</strong><span class="small muted">${esc(s.login_id)}${s.dept ? ' · ' + esc(s.dept) : ''}</span></div>
-    <div class="prog">${key === 'pending' ? '<span class="badge warn">승인 대기</span>' : `<div class="row between small"><span>${key === 'done' ? '<span class="badge ok">작성 완료</span>' : '<span class="badge off">작성 중</span>'}</span><span class="muted">${pct}% · ${when(r?.updated_at)}</span></div><div class="progress" style="margin-top:4px"><i style="width:${pct}%"></i></div>`}</div>
-    <div class="row">${key === 'pending' ? `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${s.id}">승인</button><button class="btn btn-sm" data-act="reject" data-v="${s.id}">거절</button>` : `<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${s.id}">열기</button>`}</div></div>`;
-  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님</p></div><button class="btn btn-sm" data-act="refresh">새로고침</button></div>
-    <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '승인 대기')}${stat('writing', count('writing'), '작성 중')}${stat('done', count('done'), '작성 완료')}</div>
-    <section class="card"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div>${list.map(item).join('') || '<p class="muted">해당하는 학생이 없습니다.</p>'}</div></section>
+  const item = (x) => `<tr><td>${esc(x.s.login_id)}</td><td class="strong">${esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${STATUS[x.key]}</span></td>
+    <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="lack">${esc(x.lack.join(', ')) || (x.doc ? '없음' : '-')}</td><td class="num">${x.fb}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.key === 'done' ? when(x.submitted) : '-'}</td>
+    <td class="nowrap">${x.s.status === 'approved' ? `<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${x.s.id}">열기</button>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}</td></tr>`;
+  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님</p></div><div class="row"><button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
+    <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '승인 대기')}${stat('writing', count('writing') + count('none'), '작성 중·시작 전')}${stat('done', count('done'), '작성 완료')}</div>
+    <section class="card"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="table-scroll"><table class="data"><thead><tr><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력 항목</th><th>피드백</th><th>최근 저장</th><th>완료일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="10" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     <section class="card"><div class="row between"><h2>텔레그램 완료 알림</h2><span id="tgState">${tgLabel()}</span></div>
       <ol class="small muted" style="margin:0;padding-left:20px"><li>텔레그램에서 @BotFather에게 /newbot을 보내 봇을 만들고 토큰을 복사합니다.</li><li>토큰을 아래에 넣어 저장합니다.</li><li>만든 봇에게 아무 메시지나 보낸 뒤 "알림 연결"을 누릅니다.</li></ol>
       <div class="field"><label for="tgToken">봇 토큰</label><input id="tgToken" autocomplete="off"></div>
@@ -319,6 +345,7 @@ function render() {
   const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher }[state.view]();
   const y = window.scrollY;
   $('#app').innerHTML = view;
+  $('#app').className = state.view === 'teacher' ? 'wide' : '';
   if (state.view === 'editor') { showSave(state.saveState); if (state.tab === 'preview') renderPreview(); }
   window.scrollTo(0, y);
 }
@@ -354,6 +381,7 @@ const ACT = {
   },
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
   refresh: () => loadTeacher(),
+  excel: () => downloadExcel(),
   filter: (v) => { state.filter = v; render(); },
   openStudent: (id) => openResume(state.students.find((s) => s.id === id)),
   approve: async (id) => { await sb.from('resume_profiles').update({ status: 'approved' }).eq('id', id); await loadTeacher(); toast('승인했습니다.'); },
@@ -398,7 +426,8 @@ document.addEventListener('submit', async (e) => {
   const f = e.target;
   if (f.id === 'authForm') {
     const v = Object.fromEntries(new FormData(f));
-    const err = $('#authErr'); err.hidden = true;
+    const err = $('#authErr'); err.hidden = true; state.authMsg = '';
+    if (window.ADMIN_PAGE && state.authTab === 'signup' && !String(v.teacher_code || '').trim()) { err.textContent = '교사 인증 코드를 입력해 주세요.'; err.hidden = false; return; }
     const btn = f.querySelector('[type=submit]'); btn.disabled = true;
     const login = String(v.login_id || '').trim().toLowerCase();
     try {
@@ -421,7 +450,6 @@ document.addEventListener('submit', async (e) => {
   }
 });
 window.addEventListener('beforeunload', (e) => { if (state.dirty) e.preventDefault(); });
-window.addEventListener('hashchange', () => { if (state.view === 'auth') render(); });
 window.addEventListener('resize', () => { if (state.view === 'editor' && state.tab === 'preview') renderPreview(); });
 window.addEventListener('focus', () => {
   if (state.view === 'teacher' && !$('#modal').innerHTML && document.activeElement?.id !== 'tgToken') loadTeacher();
@@ -433,6 +461,12 @@ async function boot() {
   if (!session) { state.view = 'auth'; render(); return; }
   const { data: profile } = await sb.from('resume_profiles').select().eq('id', session.user.id).maybeSingle();
   if (!profile) { await sb.auth.signOut(); state.view = 'auth'; render(); return; }
+  // 학생 계정은 교사 페이지에 머물 수 없고, 교사 계정은 교사 페이지로 보낸다
+  if (window.ADMIN_PAGE && profile.role !== 'teacher') {
+    await sb.auth.signOut();
+    state.authMsg = '교사 계정만 들어올 수 있습니다.'; state.authTab = 'login'; state.view = 'auth'; render(); return;
+  }
+  if (!window.ADMIN_PAGE && profile.role === 'teacher') { location.replace('admin.html'); return; }
   state.profile = profile;
   if (profile.status !== 'approved') { state.view = 'pending'; render(); return; }
   if (profile.role === 'teacher') await loadTeacher();
