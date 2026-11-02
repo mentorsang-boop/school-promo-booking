@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.14';
+const VERSION = '1.15';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -166,6 +166,7 @@ function fbList(section) {
   }).join('');
 }
 function fbBlock(section) {
+  if (studentDone()) return '';
   const write = canFeedback() ? `<details class="fb-write"><summary>피드백 쓰기</summary><form class="fbForm" data-section="${esc(section)}"><div class="field"><textarea name="body" maxlength="2000" required aria-label="${esc(section)} 피드백"></textarea></div><button class="btn btn-primary btn-sm" type="submit">등록</button></form></details>` : '';
   return `<div class="fb-block"><div class="fb-list" data-fb="${esc(section)}">${fbList(section)}</div>${write}</div>`;
 }
@@ -213,13 +214,14 @@ function viewEditor() {
   const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 첨삭 요청됨</span>` : `<span class="badge">${round}차 작성 중</span>`;
   const head = `<div class="head"><div>${teacher ? '<button class="btn-link" data-act="back">← 학생 목록</button>' : ''}<h1>${esc(owner.name)} 이력서</h1><p class="muted small">${classLabel(owner)} · ${esc(owner.login_id)}${owner.dept ? ' · ' + esc(owner.dept) : ''} · 진행률 ${pct}%</p></div>${badge}</div>
     <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
-  const tabs = `<div class="tabs" role="tablist">${[['edit', '작성'], ['review', `첨삭${state.feedbacks.length ? ` ${state.feedbacks.length}` : ''}`], ['preview', '미리보기'], ...(r.status === 'approved' ? [['companies', `회사별${state.companies?.length ? ` ${state.companies.length}` : ''}`], ['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const tabs = `<div class="tabs" role="tablist">${[['edit', '작성'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` ${state.feedbacks.length}` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`], ['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
+  if (studentDone() && (state.tab === 'review' || state.tab === 'preview')) state.tab = 'edit';
   let body = '';
   if (state.tab === 'review') body = viewReview();
   else if (state.tab === 'output') body = viewOutput();
   else if (state.tab === 'companies') body = viewCompanies();
   else if (state.tab === 'edit') {
-    body = (!teacher && state.feedbacks.length ? `<div class="notice" id="fbNotice">${fbNoticeHTML()}</div>` : '')
+    body = (!teacher && !studentDone() && state.feedbacks.length ? `<div class="notice" id="fbNotice">${fbNoticeHTML()}</div>` : '')
       + (teacher && r.status === 'submitted' && round >= 3 ? '<div class="notice">3차는 마지막 첨삭입니다. 고칠 내용은 직접 수정한 뒤 최종 승인해 주세요.</div>' : '')
       + (teacher && r.status === 'draft' ? `<div class="notice">학생이 ${round}차를 작성 중입니다. 첨삭 요청이 오면 피드백을 쓸 수 있습니다.</div>` : '')
       + editForm();
@@ -237,6 +239,8 @@ function viewEditor() {
 }
 
 /* 차수 보기와 승인 */
+// 완성된 학생에게는 첨삭과 미리보기를 보여 주지 않는다
+const studentDone = () => !isTeacher() && state.resume?.status === 'approved';
 const canOutput = () => state.resume?.status === 'approved' && state.tab === 'output';
 // 미리보기에서는 보고 있는 차수까지의 변경 내역을 차수별 색으로 표시한다 (4는 승인 시점의 완성본)
 const changeChain = () => {
@@ -258,8 +262,8 @@ const changeLegend = () => {
 const COMPANY_STATUS = { draft: ['작성 중', ''], submitted: ['첨삭 요청', 'warn'], approved: ['승인', 'ok'] };
 function viewCompanies() {
   const teacher = isTeacher();
-  const add = teacher ? '' : `<section class="card"><h2>회사 추가</h2><p class="small muted">승인된 자기소개서가 복사됩니다. 회사에 맞게 지원동기를 고친 뒤 첨삭을 요청하세요.</p><div class="phone-row"><div class="field"><label for="newCompany">회사명</label><input id="newCompany" maxlength="60"></div><button class="btn btn-primary" data-act="coAdd">추가</button></div></section>`;
-  const list = state.companies.length ? `<section class="card"><h2>회사 목록</h2><div class="row">${state.companies.map((c) => `<button class="btn btn-sm ${c.id === state.companyId ? 'btn-primary' : ''}" data-act="coSelect" data-v="${c.id}">${esc(c.company)} · ${COMPANY_STATUS[c.status][0]}</button>`).join('')}</div></section>` : `<section class="card"><p class="muted">${teacher ? '이 학생이 만든 회사별 자기소개서가 없습니다.' : '아직 추가한 회사가 없습니다.'}</p></section>`;
+  const add = teacher ? '' : `<section class="card"><h2>추가 자기소개서 만들기</h2><p class="small muted">승인된 자기소개서가 복사됩니다. 회사에 맞게 지원분야와 지원동기를 고친 뒤 첨삭을 요청하세요.</p><div class="phone-row"><div class="field"><label for="newCompany">회사명</label><input id="newCompany" maxlength="60"></div><button class="btn btn-primary" data-act="coAdd">추가</button></div></section>`;
+  const list = state.companies.length ? `<section class="card"><h2>추가 자기소개서 목록</h2><div class="row">${state.companies.map((c) => `<button class="btn btn-sm ${c.id === state.companyId ? 'btn-primary' : ''}" data-act="coSelect" data-v="${c.id}">${esc(c.company)} · ${COMPANY_STATUS[c.status][0]}</button>`).join('')}</div></section>` : `<section class="card"><p class="muted">${teacher ? '이 학생이 만든 추가 자기소개서가 없습니다.' : '아직 만든 추가 자기소개서가 없습니다.'}</p></section>`;
   const c = state.companies.find((x) => x.id === state.companyId);
   return add + list + (c ? companyEditor(c) : '');
 }
@@ -277,7 +281,7 @@ function companyEditor(c) {
     ? `${c.status === 'submitted' && !c.feedback ? `<div class="field"><label for="coNote">피드백</label><textarea id="coNote" maxlength="2000"></textarea></div><div><button class="btn" data-act="coFeedback">피드백 전송</button></div>` : ''}<div class="row">${c.status !== 'approved' && canApprove() ? '<button class="btn btn-primary" data-act="coReview" data-v="approved">승인</button>' : ''}${c.status === 'approved' && canApprove() ? '<button class="btn" data-act="coReview" data-v="draft">승인 취소</button>' : ''}</div>`
     : `<div class="row">${c.status === 'draft' ? '<button class="btn btn-primary" data-act="coRequest">첨삭 요청</button>' : ''}${c.status !== 'approved' ? '<button class="btn btn-danger" data-act="coDelete">삭제</button>' : ''}</div>`;
   return `<section class="card"><div class="row between"><h2>${esc(c.company)}</h2><span class="badge ${badge}">${label}</span></div>${note}
-    <div class="field"><label for="co-company">회사명</label><input id="co-company" data-co-company maxlength="60" value="${esc(c.company)}" ${editable ? '' : 'disabled'}></div>${fields}${buttons}
+    <div class="form-grid"><div class="field"><label for="co-company">회사명</label><input id="co-company" data-co-company maxlength="60" value="${esc(c.company)}" ${editable ? '' : 'disabled'}></div><div class="field"><label for="co-applyField">지원분야</label><input id="co-applyField" data-co="applyField" maxlength="60" value="${esc(c.intro.applyField ?? state.doc.applyField)}" ${editable ? '' : 'disabled'}></div></div>${fields}${buttons}
     ${c.status === 'approved' ? '<p class="hint">출력 탭에서 이 회사를 골라 프린트하거나 내려받을 수 있습니다.</p>' : ''}</section>`;
 }
 function queueCompanySave() {
@@ -317,7 +321,7 @@ function viewReview() {
 }
 const shownDoc = () => {
   const c = state.tab === 'output' && state.companies?.find((x) => x.id === state.outputCompany);
-  if (c) return { ...state.doc, company: c.company, intro: { ...state.doc.intro, ...c.intro } };
+  if (c) return { ...state.doc, company: c.company, applyField: c.intro.applyField ?? state.doc.applyField, intro: { ...state.doc.intro, ...c.intro } };
   const v = state.tab === 'preview' && state.versions?.find((x) => x.round === state.versionView);
   return v ? mergeDoc(v.data, state.owner) : state.doc;
 };
@@ -623,7 +627,7 @@ function viewTeacher() {
   return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row"><button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none'), '작성 중·시작 전')}${stat('review', count('review'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
-    <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력 항목</th><th>피드백</th><th>회사별</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력 항목</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     ${myInfoCard()}${isOwner() ? ownerCard() : ''}<section class="card"><div class="row between"><h2>텔레그램 알림</h2><span id="tgState">${tgLabel()}</span></div>
       <div id="tgBox">${tgBoxHTML()}</div></section>`);
 }
@@ -715,9 +719,9 @@ const ACT = {
   coAdd: async () => {
     const company = $('#newCompany').value.trim();
     if (!company) { toast('회사명을 입력해 주세요.'); return; }
-    const { data, error } = await sb.from('resume_companies').insert({ user_id: state.owner.id, company, intro: state.doc.intro }).select().single();
+    const { data, error } = await sb.from('resume_companies').insert({ user_id: state.owner.id, company, intro: { ...state.doc.intro, applyField: state.doc.applyField } }).select().single();
     if (error) { toast('추가하지 못했습니다.'); return; }
-    state.companyId = data.id; await loadCompanies(); render(); toast('회사를 추가했습니다.');
+    state.companyId = data.id; await loadCompanies(); render(); toast('추가 자기소개서를 만들었습니다.');
   },
   coSelect: (id) => { state.companyId = state.companyId === id ? null : id; render(); },
   coRequest: async () => {
@@ -740,7 +744,7 @@ const ACT = {
     setCompany(state.companyId, { feedback, status: 'draft' }, '피드백을 전송했습니다.');
   },
   coReview: async (status) => {
-    if (!confirm(status === 'approved' ? '이 회사 자기소개서를 승인할까요?' : '승인을 취소할까요?')) return;
+    if (!confirm(status === 'approved' ? '이 추가 자기소개서를 승인할까요?' : '승인을 취소할까요?')) return;
     clearTimeout(state.coTimer); await saveCompany();
     setCompany(state.companyId, { status, approved_at: status === 'approved' ? new Date().toISOString() : null }, status === 'approved' ? '승인했습니다.' : '승인을 취소했습니다.');
   },
