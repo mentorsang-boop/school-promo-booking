@@ -2,11 +2,11 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.15';
+const VERSION = '1.16';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
-const REQUIRED = [['applyField', '지원분야'], ['name', '성명'], ['birth', '생년월일'], ['mobile', '휴대번호'], ['address', '주소'], ['email', 'E-mail'], ['major', '전공분야']];
+const REQUIRED = [['applyField', '지원분야'], ['name', '성명'], ['birth', '생년월일'], ['mobile', '휴대번호'], ['address', '주소'], ['email', 'E-mail']];
 
 const $ = (s) => document.querySelector(s);
 const state = {
@@ -21,6 +21,9 @@ const canApprove = () => isOwner() || (isTeacher() && !!state.profile.can_approv
 const classLabel = (s) => (s?.grade ? `${s.grade}학년 ${s.class_no}반${s.number ? ` ${s.number}번` : ''}` : '반 미지정');
 const numberOptions = (max, unit, value) => `<option value="">선택</option>${Array.from({ length: max }, (_, i) => `<option value="${i + 1}" ${+value === i + 1 ? 'selected' : ''}>${i + 1}${unit}</option>`).join('')}`;
 const makeStudentId = (g, c, n) => [g, c, n].map((x) => String(x).padStart(2, '0')).join('');
+const deptField = (value = '') => (state.depts?.length
+  ? `<div class="field"><label for="f-dept">학과</label><select id="f-dept" name="dept" required><option value="">선택</option>${state.depts.map((d) => `<option ${d.name === value ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}${value && !state.depts.some((d) => d.name === value) ? `<option selected>${esc(value)}</option>` : ''}</select></div>`
+  : `<div class="field"><label for="f-dept">학과</label><input id="f-dept" name="dept" value="${esc(value)}"></div>`);
 const classFields = (s = {}) => `<div class="class-row"><div class="field"><label for="f-grade">학년</label><select id="f-grade" name="grade" required>${numberOptions(3, '학년', s.grade)}</select></div><div class="field"><label for="f-class">반</label><select id="f-class" name="class_no" required>${numberOptions(20, '반', s.class_no)}</select></div><div class="field"><label for="f-number">번호</label><select id="f-number" name="number" required>${numberOptions(40, '번', s.number)}</select></div></div>`;
 const api = async (body) => {
   const { data: { session } } = await sb.auth.getSession();
@@ -86,7 +89,7 @@ function viewAuth() {
     <form id="authForm" style="display:grid;gap:12px" novalidate>
       ${!teacher && signup ? '' : `<div class="field"><label for="f-id">${teacher ? '아이디' : '학번'}</label><input id="f-id" name="login_id" autocomplete="username" autocapitalize="none" required></div>`}
       ${signup ? `<div class="field"><label for="f-name">이름</label><input id="f-name" name="name" autocomplete="name" required></div>
-      ${teacher ? `<div class="field"><label for="f-code">교사 인증 코드</label><input id="f-code" name="teacher_code" autocomplete="off" required></div><div class="field"><label for="f-phone">학교 전화번호 <span class="req">*</span></label><input id="f-phone" name="school_phone" type="tel" autocomplete="off" required><span class="hint">피드백 옆에 표시되어 학생이 연락할 수 있습니다.</span></div>` : `${classFields()}<div class="notice" id="autoId">학년, 반, 번호를 고르면 학번이 만들어집니다.</div><div class="field"><label for="f-dept">학과</label><input id="f-dept" name="dept"></div>`}` : ''}
+      ${teacher ? `<div class="field"><label for="f-code">교사 인증 코드</label><input id="f-code" name="teacher_code" autocomplete="off" required></div><div class="field"><label for="f-phone">학교 전화번호 <span class="req">*</span></label><input id="f-phone" name="school_phone" type="tel" autocomplete="off" required><span class="hint">피드백 옆에 표시되어 학생이 연락할 수 있습니다.</span></div>` : `${classFields()}<div class="notice" id="autoId">학년, 반, 번호를 고르면 학번이 만들어집니다.</div>${deptField()}`}` : ''}
       <div class="field"><label for="f-pw">비밀번호${signup ? ' (8자 이상)' : ''}</label><input id="f-pw" name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></div>
       ${signup ? `<label class="check"><input type="checkbox" name="consent"><span>이력서 작성·지도를 위해 사진, 연락처, 주소, 학력·경력 등 개인정보를 수집·이용하고 담당 교사가 열람하는 데 동의합니다. 보유 기간은 수료 후 계정을 삭제할 때까지입니다.</span></label>` : ''}
       <p class="error" id="authErr" ${state.authMsg ? '' : 'hidden'}>${esc(state.authMsg || '')}</p>
@@ -190,7 +193,7 @@ function editForm() {
   <section class="card" data-sec="학력"><h2>학력</h2><div class="form-grid">
     ${rangeInput('eduPeriod', '재학기간')}${input('eduSchool', '학교명', { cls: 'full' })}
     ${rangeInput('edu2Period', '원적교 재학기간')}${input('edu2School', '원적교', { cls: 'full' })}
-    ${input('major', '전공분야(학과명)', { req: 1 })}${input('gradStatus', '졸업여부')}
+    ${input('major', '전공분야(학과명)')}${input('gradStatus', '졸업여부')}
   </div>${fbBlock('학력')}</section>
   <section class="card" data-sec="자격 및 면허"><h2>자격 및 면허</h2><div class="rows">${d.licenses.map((_, i) => `<div class="entry-3">${input(`licenses.${i}.date`, '취득일', DATE)}${input(`licenses.${i}.name`, '자격 및 면허증 명')}${input(`licenses.${i}.org`, '발급기관')}</div>`).join('<hr style="border:0;border-top:1px solid var(--line);margin:0;width:100%">')}</div>${fbBlock('자격 및 면허')}</section>
   <section class="card" data-sec="수상 및 활동"><h2>수상 및 활동 경력</h2><div class="rows">${d.awards.map((_, i) => periodRow('awards', i, 'text', '내용', 'org', '기관')).join('')}</div>${fbBlock('수상 및 활동')}</section>
@@ -342,6 +345,7 @@ function reviewButtons(r) {
 const canFeedback = () => isTeacher() && state.resume?.status === 'submitted' && (state.resume.round || 1) < 3;
 // 학생은 제출 후 잠기고, 승인 후에는 회사명과 작성일만 고칠 수 있다
 function applyLocks() {
+  ['i-name', 'i-major'].forEach((id) => { const el = document.getElementById(id); if (el) el.disabled = true; });
   const status = state.resume.status;
   if (isTeacher()) {
     if (canEdit()) return;
@@ -449,6 +453,8 @@ async function openResume(owner) {
   }
   state.resume = r;
   state.doc = mergeDoc(r.data, owner);
+  state.doc.name = owner.name;
+  if (owner.dept) state.doc.major = owner.dept;
   state.versionView = null;
   const { data: versions } = await sb.from('resume_versions').select().eq('user_id', owner.id);
   state.versions = versions || [];
@@ -457,6 +463,8 @@ async function openResume(owner) {
   await Promise.all([loadPhoto(), loadFeedbacks()]);
   state.view = 'editor';
   if (isTeacher() && r.status === 'submitted') state.tab = 'review';
+  const asked = isTeacher() && r.status === 'approved' && state.companies.find((c) => c.status === 'submitted');
+  if (asked) { state.tab = 'companies'; state.companyId = asked.id; }
   render();
   showSave(`마지막 저장 ${when(r.updated_at)}`);
 }
@@ -500,7 +508,7 @@ async function loadTeacher() {
     sb.from('resume_profiles').select().eq('role', 'student').order('grade').order('class_no').order('number').order('login_id'),
     sb.from('resumes').select('user_id,data,photo_path,status,round,approved_at,submitted_at,updated_at'),
     sb.from('resume_feedbacks').select('student_id,done_at').not('sent_at', 'is', null),
-    sb.from('resume_companies').select('user_id,status'),
+    sb.from('resume_companies').select('id,user_id,company,status,applyField:intro->>applyField').order('created_at'),
   ]);
   state.students = p.data || [];
   state.resumes = r.data || [];
@@ -557,16 +565,18 @@ const companyCell = (id) => {
   const rows = (state.coRows || []).filter((c) => c.user_id === id);
   if (!rows.length) return '-';
   const asked = rows.filter((c) => c.status === 'submitted').length;
-  return `${rows.length}개${asked ? ` <span class="badge warn">요청 ${asked}</span>` : ''}`;
+  return `<button class="btn-link" data-act="coList" data-v="${id}">${rows.length}개 보기</button>${asked ? ` <span class="badge warn">요청 ${asked}</span>` : ''}`;
 };
-const STATUS = { pending: '가입 승인 대기', rejected: '가입 거절', none: '시작 전', writing: '작성 중', review: '첨삭 요청', done: '완성' };
-const BADGE = { pending: 'warn', rejected: 'off', none: 'off', writing: '', review: 'warn', done: 'ok' };
+const STATUS = { pending: '가입 승인 대기', rejected: '가입 거절', none: '시작 전', writing: '작성 중', review: '첨삭 요청', done: '완성', coReview: '추가 자기소개서 첨삭 요청', coWriting: '추가 자기소개서 작성 중' };
+const BADGE = { pending: 'warn', rejected: 'off', none: 'off', writing: '', review: 'warn', done: 'ok', coReview: 'warn', coWriting: '' };
 const statusText = (x) => (x.key === 'writing' || x.key === 'review' ? `${x.round}차 ${STATUS[x.key]}` : STATUS[x.key]);
 function studentRows() {
   return state.students.map((s) => {
     const r = state.resumes.find((x) => x.user_id === s.id);
     const doc = r ? mergeDoc(r.data, s) : null;
-    const key = s.status !== 'approved' ? s.status : !r ? 'none' : r.status === 'approved' ? 'done' : r.status === 'submitted' ? 'review' : 'writing';
+    const co = (state.coRows || []).filter((c) => c.user_id === s.id);
+    const key = s.status !== 'approved' ? s.status : !r ? 'none' : r.status !== 'approved' ? (r.status === 'submitted' ? 'review' : 'writing')
+      : co.some((c) => c.status === 'submitted') ? 'coReview' : co.some((c) => c.status === 'draft') ? 'coWriting' : 'done';
     return {
       s, key, doc,
       pct: doc ? progress(doc, !!r.photo_path) : 0,
@@ -581,7 +591,7 @@ function downloadExcel() {
   const rows = studentRows().map((x) => ({
     학년: x.s.grade || '', 반: x.s.class_no || '', 번호: x.s.number || '', 학번: x.s.login_id, 이름: x.s.name, 학과: x.doc?.major || x.s.dept, 상태: statusText(x), '진행률(%)': x.pct,
     지원분야: x.doc?.applyField || '', 회사명: x.doc?.company || '', '미입력 항목': x.lack.join(', '), '피드백 수': x.fb, '학생 응답': x.fbDone,
-    '최근 저장': x.updated ? new Date(x.updated).toLocaleString('ko-KR') : '', 승인일: x.key === 'done' && x.approved ? new Date(x.approved).toLocaleString('ko-KR') : '',
+    '최근 저장': x.updated ? new Date(x.updated).toLocaleString('ko-KR') : '', 승인일: x.approved ? new Date(x.approved).toLocaleString('ko-KR') : '',
   }));
   if (!rows.length) { toast('내려받을 학생이 없습니다.'); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -594,6 +604,12 @@ const studentUrl = () => new URL('./', location.href).href;
 function drawShareQr() {
   const box = $('#shareQr');
   if (box && window.QRCode) new QRCode(box, { text: studentUrl(), width: 132, height: 132 });
+}
+function viewDepts() {
+  const rows = (state.depts || []).map((d) => `<div class="dept-row"><input data-dept="${d.id}" value="${esc(d.name)}" maxlength="40" aria-label="학과 이름"><button class="btn btn-sm btn-danger" data-act="delDept" data-v="${d.id}">삭제</button></div>`).join('');
+  return shell(`<div class="head"><div><button class="btn-link" data-act="back">← 학생 목록</button><h1>학과 관리</h1><p class="muted small">여기에 입력한 학과가 학생 회원가입 화면에 선택 목록으로 나옵니다.</p></div></div>
+    <section class="card"><h2>학과 추가</h2><form id="deptForm" class="phone-row"><div class="field"><label for="newDept">학과 이름</label><input id="newDept" maxlength="40" required></div><button class="btn btn-primary" type="submit">추가</button></form></section>
+    <section class="card"><h2>학과 목록</h2><div class="rows">${rows || '<p class="muted">아직 등록한 학과가 없습니다. 학과를 추가하기 전까지 학생은 학과를 직접 입력합니다.</p>'}</div><p class="hint">이름을 고치면 자동 저장됩니다. 학과를 삭제하거나 이름을 바꿔도 이미 가입한 학생의 학과는 그대로입니다.</p></section>`);
 }
 function myInfoCard() {
   const phone = state.profile.school_phone || '';
@@ -618,22 +634,22 @@ function viewTeacher() {
   const classKey = (s) => (s.grade ? `${s.grade}-${s.class_no}` : 'none');
   const classes = [...new Map(rows.map((x) => [classKey(x.s), x.s.grade ? `${x.s.grade}학년 ${x.s.class_no}반` : '반 미지정'])).entries()];
   const inClass = (x) => !state.classFilter || classKey(x.s) === state.classFilter;
-  const match = (x) => inClass(x) && (state.filter === 'all' || x.key === state.filter || (state.filter === 'writing' && x.key === 'none'));
+  const match = (x) => inClass(x) && (state.filter === 'all' || x.key === state.filter || (state.filter === 'writing' && ['none', 'coWriting'].includes(x.key)) || (state.filter === 'review' && x.key === 'coReview'));
   const list = rows.filter((x) => match(x) && (!q || x.s.name.toLowerCase().includes(q) || x.s.login_id.includes(q)));
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
   const item = (x) => `<tr><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
-    <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="lack">${esc(x.lack.join(', ')) || (x.doc ? '없음' : '-')}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.key === 'done' ? when(x.approved) : '-'}</td>
-    <td class="nowrap">${x.s.status === 'approved' ? `${x.key === 'done' ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">완성본 보기</a> ` : ''}<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${x.s.id}">열기</button>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
-  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row"><button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
-    <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none'), '작성 중·시작 전')}${stat('review', count('review'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
+    <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.approved ? when(x.approved) : '-'}</td>
+    <td class="nowrap">${x.s.status === 'approved' ? `${x.approved ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">완성본 보기</a> ` : ''}<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${x.s.id}">열기</button>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
+  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
+    <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none') + count('coWriting'), '작성 중·시작 전')}${stat('review', count('review') + count('coReview'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
-    <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력 항목</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     ${myInfoCard()}${isOwner() ? ownerCard() : ''}<section class="card"><div class="row between"><h2>텔레그램 알림</h2><span id="tgState">${tgLabel()}</span></div>
       <div id="tgBox">${tgBoxHTML()}</div></section>`);
 }
 
 function render() {
-  const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher }[state.view]();
+  const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher, depts: viewDepts }[state.view]();
   const y = window.scrollY;
   $('#app').innerHTML = view;
   $('#app').className = state.view === 'teacher' ? 'wide' : '';
@@ -716,6 +732,26 @@ const ACT = {
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
   refresh: () => loadTeacher(),
   excel: () => downloadExcel(),
+  openDepts: async () => { await loadDepts(); state.view = 'depts'; render(); window.scrollTo(0, 0); },
+  delDept: async (id) => {
+    const d = state.depts.find((x) => String(x.id) === String(id));
+    if (!confirm(`${d.name} 학과를 목록에서 삭제할까요? 이미 가입한 학생의 학과는 그대로입니다.`)) return;
+    const { error } = await sb.from('resume_departments').delete().eq('id', id);
+    if (error) { toast('삭제하지 못했습니다.'); return; }
+    await loadDepts(); render();
+  },
+  coList: (id) => {
+    const rows = (state.coRows || []).filter((c) => c.user_id === id);
+    const s = state.students.find((x) => x.id === id);
+    $('#modal').innerHTML = `<div class="modal-back"><div class="modal-box"><div class="row between"><h2 style="font-size:1.125rem">${esc(s.name)} 추가 자기소개서</h2><button class="btn btn-sm" data-act="closeModal">닫기</button></div>
+      <div class="co-list">${rows.map((c) => `<button class="co-item" data-act="coOpen" data-v="${id}|${c.id}"><b>${esc(c.company)}</b><span class="small muted">${esc(c.applyField || '지원분야 기본')}</span><span class="badge ${COMPANY_STATUS[c.status][1]}">${COMPANY_STATUS[c.status][0]}</span></button>`).join('')}</div></div></div>`;
+  },
+  coOpen: async (v) => {
+    const [id, company] = v.split('|');
+    $('#modal').innerHTML = '';
+    await openResume(state.students.find((x) => x.id === id));
+    state.tab = 'companies'; state.companyId = company; render(); window.scrollTo(0, 0);
+  },
   coAdd: async () => {
     const company = $('#newCompany').value.trim();
     if (!company) { toast('회사명을 입력해 주세요.'); return; }
@@ -768,7 +804,7 @@ const ACT = {
   },
   editClass: (id) => {
     const s = state.students.find((x) => x.id === id);
-    $('#modal').innerHTML = `<div class="modal-back"><form class="modal-box" id="classForm" data-id="${id}"><h2 style="font-size:1.125rem">${esc(s.name)} 반 변경</h2>${classFields(s)}<div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-act="closeModal">취소</button><button class="btn btn-primary" type="submit">저장</button></div></form></div>`;
+    $('#modal').innerHTML = `<div class="modal-back"><form class="modal-box" id="classForm" data-id="${id}"><h2 style="font-size:1.125rem">학생 정보 변경</h2><div class="field"><label for="f-name">이름</label><input id="f-name" name="name" value="${esc(s.name)}" maxlength="30" required></div>${deptField(s.dept)}${classFields(s)}<div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-act="closeModal">취소</button><button class="btn btn-primary" type="submit">저장</button></div></form></div>`;
   },
   copyUrl: async () => {
     const input = $('#shareUrl');
@@ -846,6 +882,10 @@ document.addEventListener('change', (e) => {
     const g = $('#f-grade').value; const c = $('#f-class').value; const n = $('#f-number').value;
     $('#autoId').innerHTML = g && c && n ? `내 학번은 <b>${makeStudentId(g, c, n)}</b>입니다. 로그인할 때 이 번호를 사용하세요.` : '학년, 반, 번호를 고르면 학번이 만들어집니다.';
   }
+  if (t.dataset.dept) {
+    sb.from('resume_departments').update({ name: t.value.trim() }).eq('id', t.dataset.dept).then(({ error }) => { toast(error ? '저장하지 못했습니다. 같은 이름이 있는지 확인해 주세요.' : '저장했습니다.'); return loadDepts(); });
+    return;
+  }
   if (t.id === 'outChoice') { state.outputCompany = t.value; render(); return; }
   if (t.id === 'classFilter') { state.classFilter = t.value; render(); return; }
   if (t.dataset.perm) {
@@ -867,6 +907,7 @@ document.addEventListener('submit', async (e) => {
   if (f.id === 'authForm') {
     const v = Object.fromEntries(new FormData(f));
     const err = $('#authErr'); err.hidden = true; state.authMsg = '';
+    if (!window.ADMIN_PAGE && state.authTab === 'signup' && state.depts?.length && !v.dept) { err.textContent = '학과를 선택해 주세요.'; err.hidden = false; return; }
     if (!window.ADMIN_PAGE && state.authTab === 'signup' && !(v.grade && v.class_no && v.number)) { err.textContent = '학년, 반, 번호를 모두 선택해 주세요.'; err.hidden = false; return; }
     if (window.ADMIN_PAGE && state.authTab === 'signup' && !String(v.teacher_code || '').trim()) { err.textContent = '교사 인증 코드를 입력해 주세요.'; err.hidden = false; return; }
     if (window.ADMIN_PAGE && state.authTab === 'signup' && String(v.school_phone || '').trim().length < 7) { err.textContent = '학교 전화번호를 입력해 주세요.'; err.hidden = false; return; }
@@ -881,10 +922,17 @@ document.addEventListener('submit', async (e) => {
       await boot();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
   }
+  if (f.id === 'deptForm') {
+    const name = $('#newDept').value.trim();
+    if (!name) return;
+    const { error } = await sb.from('resume_departments').insert({ name, sort_order: (state.depts?.length || 0) + 1 });
+    if (error) { toast('추가하지 못했습니다. 같은 이름이 있는지 확인해 주세요.'); return; }
+    await loadDepts(); render();
+  }
   if (f.id === 'classForm') {
     const v = Object.fromEntries(new FormData(f));
-    if (!(v.grade && v.class_no && v.number)) { toast('학년, 반, 번호를 모두 선택해 주세요.'); return; }
-    const { error } = await sb.from('resume_profiles').update({ grade: +v.grade, class_no: +v.class_no, number: +v.number }).eq('id', f.dataset.id);
+    if (!v.name.trim() || !(v.grade && v.class_no && v.number)) { toast('이름, 학년, 반, 번호를 모두 입력해 주세요.'); return; }
+    const { error } = await sb.from('resume_profiles').update({ name: v.name.trim(), dept: v.dept || '', grade: +v.grade, class_no: +v.class_no, number: +v.number }).eq('id', f.dataset.id);
     if (error) { toast('저장하지 못했습니다.'); return; }
     $('#modal').innerHTML = ''; await loadTeacher();
   }
@@ -907,7 +955,12 @@ window.addEventListener('focus', () => {
   if (state.view === 'editor') loadFeedbacks().then(refreshFb);
 });
 
+async function loadDepts() {
+  const { data } = await sb.from('resume_departments').select().order('sort_order').order('name');
+  state.depts = data || [];
+}
 async function boot() {
+  await loadDepts();
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { state.view = 'auth'; render(); return; }
   const { data: profile } = await sb.from('resume_profiles').select().eq('id', session.user.id).maybeSingle();
