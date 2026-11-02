@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.8';
+const VERSION = '1.9';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 및 활동', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -139,13 +139,13 @@ function fbList(section) {
   const items = state.feedbacks.filter((f) => f.section === section || (section === '전체' && !SECTIONS.includes(f.section)));
   return items.map((f) => {
     const status = isTeacher()
-      ? `<div class="row between">${f.done_at ? `<span class="badge ok">학생 수정 완료 ${when(f.done_at)}</span>` : '<span class="badge warn">학생 미확인</span>'}<button class="btn-link" data-act="delFb" data-v="${f.id}">삭제</button></div>`
+      ? `<div class="row between">${!f.sent_at ? '<span class="badge off">전송 전</span>' : f.done_at ? `<span class="badge ok">학생 수정 완료 ${when(f.done_at)}</span>` : '<span class="badge warn">학생 미확인</span>'}<button class="btn-link" data-act="delFb" data-v="${f.id}">삭제</button></div>`
       : (f.done_at ? `<div class="row"><span class="badge ok">수정 완료 ${when(f.done_at)}</span><button class="btn-link" data-act="fbDone" data-v="${f.id}">취소</button></div>` : `<div><button class="btn btn-primary btn-sm" data-act="fbDone" data-v="${f.id}">수정했어요</button></div>`);
     return `<article class="fb"><div class="row between"><b class="small">${f.round ? `${f.round}차 ` : ''}선생님 피드백</b><span class="hint">${when(f.created_at)}</span></div><p>${esc(f.body)}</p>${changesHTML(f)}${status}</article>`;
   }).join('');
 }
 function fbBlock(section) {
-  const write = isTeacher() ? `<details class="fb-write"><summary>피드백 쓰기</summary><form class="fbForm" data-section="${esc(section)}"><div class="field"><textarea name="body" maxlength="2000" required aria-label="${esc(section)} 피드백"></textarea></div><button class="btn btn-primary btn-sm" type="submit">등록</button></form></details>` : '';
+  const write = canFeedback() ? `<details class="fb-write"><summary>피드백 쓰기</summary><form class="fbForm" data-section="${esc(section)}"><div class="field"><textarea name="body" maxlength="2000" required aria-label="${esc(section)} 피드백"></textarea></div><button class="btn btn-primary btn-sm" type="submit">등록</button></form></details>` : '';
   return `<div class="fb-block"><div class="fb-list" data-fb="${esc(section)}">${fbList(section)}</div>${write}</div>`;
 }
 function refreshFb() {
@@ -154,7 +154,7 @@ function refreshFb() {
 
 function editForm() {
   const d = state.doc;
-  return `${isTeacher() || state.feedbacks.some((f) => f.section === '전체' || !SECTIONS.includes(f.section)) ? `<section class="card"><h2>이력서 전체</h2>${fbBlock('전체')}</section>` : ''}
+  return `${canFeedback() || state.feedbacks.some((f) => f.section === '전체' || !SECTIONS.includes(f.section)) ? `<section class="card"><h2>이력서 전체</h2>${fbBlock('전체')}</section>` : ''}
   <section class="card"><h2>기본 정보</h2>
     <div class="photo-box"><div class="photo ${state.photoUrl ? 'has' : ''}" style="${state.photoUrl ? `background-image:url('${state.photoUrl}')` : ''}">${state.photoUrl ? '' : '3×4<br>증명사진'}</div>
       <div style="display:grid;gap:6px"><label class="btn btn-soft" for="photoInput">사진 ${state.photoUrl ? '바꾸기' : '올리기'}</label><input id="photoInput" type="file" accept="image/*" hidden><span class="hint">자동으로 3:4 비율에 맞춰 잘립니다.</span></div></div>
@@ -189,13 +189,16 @@ function viewEditor() {
   const pct = progress(d, !!state.photoUrl);
   const teacher = isTeacher();
   const round = r.round || 1;
-  const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 제출 · 첨삭 대기</span>` : `<span class="badge">${round}차 작성 중</span>`;
+  const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 첨삭 요청됨</span>` : `<span class="badge">${round}차 작성 중</span>`;
   const head = `<div class="head"><div>${teacher ? '<button class="btn-link" data-act="back">← 학생 목록</button>' : ''}<h1>${esc(owner.name)} 이력서</h1><p class="muted small">${esc(owner.login_id)}${owner.dept ? ' · ' + esc(owner.dept) : ''} · 진행률 ${pct}%</p></div>${badge}</div>
     <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
   const tabs = `<div class="tabs" role="tablist">${[['edit', '작성'], ['preview', '미리보기·출력']].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
   let body = '';
   if (state.tab === 'edit') {
-    body = (!teacher && state.feedbacks.length ? `<div class="notice" id="fbNotice">${state.feedbacks.some((f) => !f.done_at) ? `아직 수정하지 않은 피드백이 <b>${state.feedbacks.filter((f) => !f.done_at).length}건</b> 있습니다. 해당 항목 바로 아래에서 확인하세요.` : '모든 피드백을 수정했습니다.'}</div>` : '') + editForm();
+    body = (!teacher && state.feedbacks.length ? `<div class="notice" id="fbNotice">${state.feedbacks.some((f) => !f.done_at) ? `아직 수정하지 않은 피드백이 <b>${state.feedbacks.filter((f) => !f.done_at).length}건</b> 있습니다. 해당 항목 바로 아래에서 확인하세요.` : '모든 피드백을 수정했습니다.'}</div>` : '')
+      + (teacher && r.status === 'submitted' && round >= 3 ? '<div class="notice">3차는 마지막 첨삭입니다. 고칠 내용은 직접 수정한 뒤 최종 승인해 주세요.</div>' : '')
+      + (teacher && r.status === 'draft' ? `<div class="notice">학생이 ${round}차를 작성 중입니다. 첨삭 요청이 오면 피드백을 쓸 수 있습니다.</div>` : '')
+      + editForm();
   } else {
     body = `<section class="card">${versionButtons()}${canOutput() ? '<div class="row"><button class="btn btn-primary" data-act="print">프린트</button><button class="btn" data-act="pdf">PDF 다운로드</button></div>' : `<div class="notice">${r.status === 'approved' ? '프린트와 다운로드는 완성본에서 할 수 있습니다.' : '지금은 미리보기만 가능합니다. 선생님이 승인하면 프린트와 다운로드를 할 수 있습니다.'}</div>`}
       ${missingList.length ? `<div class="notice warn">아직 비어 있는 항목: ${esc(missingList.join(', '))}</div>` : ''}
@@ -203,8 +206,8 @@ function viewEditor() {
   }
   const submit = teacher ? reviewButtons(r)
     : r.status === 'approved' ? '<button class="btn btn-primary" data-act="tab" data-v="preview">프린트·다운로드</button>'
-    : r.status === 'submitted' ? '<button class="btn" disabled>선생님 확인 중</button>'
-    : `<button class="btn btn-primary" data-act="submit">${round}차 제출</button>`;
+    : r.status === 'submitted' ? '<button class="btn" disabled>선생님 첨삭 중</button>'
+    : `<button class="btn btn-primary" data-act="submit">${round}차 첨삭 요청</button>`;
   const dock = `<div class="dock"><div class="wrap"><span class="save-state" id="saveState"></span>${submit}</div></div>`;
   return shell(head + tabs + body, dock);
 }
@@ -223,10 +226,11 @@ function versionButtons() {
 }
 function reviewButtons(r) {
   const round = r.round || 1;
-  if (r.status === 'approved') return '<button class="btn" data-act="review" data-v="reopen">승인 취소</button>';
-  const back = r.status === 'submitted' && round < 3 ? `<button class="btn" data-act="review" data-v="next">${round + 1}차 첨삭으로 돌려보내기</button>` : '';
-  return `<div class="row">${back}<button class="btn btn-primary" data-act="review" data-v="approve">승인 (완성)</button></div>`;
+  if (r.status === 'approved') return '<button class="btn" data-act="review" data-v="reopen">최종 승인 취소</button>';
+  const send = canFeedback() ? `<button class="btn" data-act="review" data-v="next">피드백 전송 (${round + 1}차로)</button>` : '';
+  return `<div class="row">${send}<button class="btn btn-primary" data-act="review" data-v="approve">최종 승인</button></div>`;
 }
+const canFeedback = () => isTeacher() && state.resume?.status === 'submitted' && (state.resume.round || 1) < 3;
 // 학생은 제출 후 잠기고, 승인 후에는 회사명과 작성일만 고칠 수 있다
 function applyLocks() {
   const status = state.resume.status;
@@ -235,7 +239,7 @@ function applyLocks() {
   document.querySelectorAll('[data-path],[data-range],[data-act=findAddr],#photoInput').forEach((el) => { if (!free.includes(el.dataset.path)) el.disabled = true; });
   document.querySelector('label[for=photoInput]')?.remove();
   $('#i-addressBase')?.removeAttribute('data-act');
-  document.querySelector('.page .tabs').insertAdjacentHTML('afterend', `<div class="notice ${status === 'approved' ? 'ok' : 'warn'}">${status === 'approved' ? '선생님이 승인한 완성본입니다. 회사명과 작성일만 고칠 수 있습니다.' : '제출한 내용을 선생님이 확인하고 있습니다. 돌려받으면 다시 수정할 수 있습니다.'}</div>`);
+  document.querySelector('.page .tabs').insertAdjacentHTML('afterend', `<div class="notice ${status === 'approved' ? 'ok' : 'warn'}">${status === 'approved' ? '선생님이 승인한 완성본입니다. 회사명과 작성일만 고칠 수 있습니다.' : '선생님이 첨삭하고 있습니다. 피드백이 오면 다시 수정할 수 있습니다.'}</div>`);
 }
 
 /* 출력 */
@@ -368,7 +372,7 @@ async function loadTeacher() {
   const [p, r, f] = await Promise.all([
     sb.from('resume_profiles').select().eq('role', 'student').order('login_id'),
     sb.from('resumes').select('user_id,data,photo_path,status,round,approved_at,submitted_at,updated_at'),
-    sb.from('resume_feedbacks').select('student_id,done_at'),
+    sb.from('resume_feedbacks').select('student_id,done_at').not('sent_at', 'is', null),
   ]);
   state.students = p.data || [];
   state.resumes = r.data || [];
@@ -379,7 +383,7 @@ async function loadTeacher() {
 }
 const tgLabel = () => (state.tg?.hasChat ? '<span class="badge ok">연결됨</span>' : state.tg?.hasToken ? '<span class="badge warn">채팅 연결 필요</span>' : '<span class="badge off">미연결</span>');
 
-const STATUS = { pending: '가입 승인 대기', rejected: '가입 거절', none: '시작 전', writing: '작성 중', review: '첨삭 대기', done: '완성' };
+const STATUS = { pending: '가입 승인 대기', rejected: '가입 거절', none: '시작 전', writing: '작성 중', review: '첨삭 요청', done: '완성' };
 const BADGE = { pending: 'warn', rejected: 'off', none: 'off', writing: '', review: 'warn', done: 'ok' };
 const statusText = (x) => (x.key === 'writing' || x.key === 'review' ? `${x.round}차 ${STATUS[x.key]}` : STATUS[x.key]);
 function studentRows() {
@@ -421,7 +425,7 @@ function viewTeacher() {
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="lack">${esc(x.lack.join(', ')) || (x.doc ? '없음' : '-')}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 완료</span>` : '-'}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.key === 'done' ? when(x.approved) : '-'}</td>
     <td class="nowrap">${x.s.status === 'approved' ? `<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${x.s.id}">열기</button>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}</td></tr>`;
   return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님</p></div><div class="row"><button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
-    <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none'), '작성 중·시작 전')}${stat('review', count('review'), '첨삭 대기')}${stat('done', count('done'), '완성')}</div>
+    <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none'), '작성 중·시작 전')}${stat('review', count('review'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="table-scroll"><table class="data"><thead><tr><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력 항목</th><th>피드백</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="10" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     <section class="card"><div class="row between"><h2>텔레그램 완료 알림</h2><span id="tgState">${tgLabel()}</span></div>
       <ol class="small muted" style="margin:0;padding-left:20px"><li>텔레그램에서 @BotFather에게 /newbot을 보내 봇을 만들고 토큰을 복사합니다.</li><li>토큰을 아래에 넣어 저장합니다.</li><li>만든 봇에게 아무 메시지나 보낸 뒤 "알림 연결"을 누릅니다.</li></ol>
@@ -476,13 +480,13 @@ const ACT = {
     const list = missing(state.doc, !!state.photoUrl);
     if (list.length) { toast(`먼저 입력해 주세요: ${list.slice(0, 3).join(', ')}${list.length > 3 ? ` 외 ${list.length - 3}개` : ''}`); return; }
     const round = state.resume.round || 1;
-    if (!confirm(`${round}차로 제출할까요? 선생님이 돌려주기 전까지는 수정할 수 없습니다.`)) return;
+    if (!confirm(`${round}차 첨삭을 요청할까요? 선생님이 피드백을 보내기 전까지는 수정할 수 없습니다.`)) return;
     if (!(await save())) return;
     try {
       await api({ action: 'submit' });
       await openResume(state.owner);
       state.tab = 'preview'; render(); window.scrollTo(0, 0);
-      toast(`${round}차 제출을 완료했습니다. 선생님께 알림을 보냈습니다.`);
+      toast(`${round}차 첨삭을 요청했습니다. 선생님께 알림을 보냈습니다.`);
     } catch (e) { toast(e.message); }
   },
   version: (v) => { state.versionView = v ? +v : null; render(); },
@@ -490,13 +494,23 @@ const ACT = {
     const r = state.resume;
     if (state.dirty && !(await save())) return;
     const round = state.resume.round || 1;
-    const asks = { next: `${round + 1}차 첨삭으로 돌려보낼까요? 학생이 다시 수정할 수 있게 됩니다.`, approve: '이 이력서를 완성으로 승인할까요? 학생이 프린트와 다운로드를 할 수 있게 됩니다.', reopen: '승인을 취소할까요? 학생의 프린트와 다운로드가 다시 막힙니다.' };
+    const unsent = state.feedbacks.filter((f) => !f.sent_at);
+    const asks = {
+      next: unsent.length ? `피드백 ${unsent.length}건을 학생에게 전송하고 ${round + 1}차 수정으로 넘길까요?` : `작성한 피드백이 없습니다. 피드백 없이 ${round + 1}차 수정으로 넘길까요?`,
+      approve: `최종 승인할까요? 학생이 프린트와 다운로드를 할 수 있게 됩니다.${unsent.length ? `\n전송하지 않은 피드백 ${unsent.length}건은 학생에게 보이지 않습니다.` : ''}`,
+      reopen: '최종 승인을 취소할까요? 학생의 프린트와 다운로드가 다시 막힙니다.',
+    };
     if (!confirm(asks[kind])) return;
+    if (kind === 'next' && unsent.length) {
+      const sent = await sb.from('resume_feedbacks').update({ sent_at: new Date().toISOString() }).eq('student_id', r.user_id).is('sent_at', null);
+      if (sent.error) { toast('피드백을 전송하지 못했습니다. 다시 시도해 주세요.'); return; }
+      await loadFeedbacks();
+    }
     const patch = { next: { status: 'draft', round: round + 1 }, approve: { status: 'approved', approved_at: new Date().toISOString() }, reopen: { status: 'draft', approved_at: null } }[kind];
     const { data, error } = await sb.from('resumes').update(patch).eq('user_id', r.user_id).eq('version', state.resume.version).select().maybeSingle();
     if (error || !data) { toast('처리하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
     state.resume = data; state.versionView = null; render();
-    toast({ next: `${round + 1}차로 돌려보냈습니다.`, approve: '완성으로 승인했습니다.', reopen: '승인을 취소했습니다.' }[kind]);
+    toast({ next: '피드백을 전송했습니다.', approve: '최종 승인했습니다.', reopen: '최종 승인을 취소했습니다.' }[kind]);
   },
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
   refresh: () => loadTeacher(),
@@ -571,10 +585,10 @@ document.addEventListener('submit', async (e) => {
   if (f.classList.contains('fbForm')) {
     const body = new FormData(f).get('body').trim();
     if (!body) return;
-    const { error } = await sb.from('resume_feedbacks').insert({ student_id: state.owner.id, teacher_id: state.profile.id, section: f.dataset.section, round: state.resume.round || 1, body, snapshot: sectionValues(f.dataset.section, state.doc) });
+    const { error } = await sb.from('resume_feedbacks').insert({ student_id: state.owner.id, teacher_id: state.profile.id, section: f.dataset.section, round: state.resume.round || 1, sent_at: null, body, snapshot: sectionValues(f.dataset.section, state.doc) });
     if (error) { toast('피드백을 등록하지 못했습니다.'); return; }
     f.reset();
-    await loadFeedbacks(); refreshFb(); toast('피드백을 등록했습니다.');
+    await loadFeedbacks(); refreshFb(); toast('등록했습니다. 피드백 전송을 누르면 학생에게 보입니다.');
   }
 });
 window.addEventListener('beforeunload', (e) => { if (state.dirty) e.preventDefault(); });
