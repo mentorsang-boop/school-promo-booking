@@ -124,7 +124,17 @@ h1, h2, h3 { line-height: 1.3; letter-spacing: -.02em; }
 .fb-write form { display: grid; gap: 8px; justify-items: start; padding-top: 4px; }
 .fb-write .field { width: 100%; }
 .fb-write textarea { min-height: 90px; }
-.a4 .chg, .chg { background: none; color: #d0281c; font-weight: 600; }
+.a4 .chg, .chg { background: none; font-weight: 600; }
+.chg-2 { color: #d0281c; }
+.chg-3 { color: #1f5fbf; }
+.chg-4 { color: #12805c; }
+.legend { display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; margin: 0; }
+.fb-who { display: flex; gap: 2px 10px; flex-wrap: wrap; align-items: center; }
+.fb-who a { color: var(--brand); font-weight: 600; }
+.co-diff { background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: .875rem; }
+.co-diff p { margin: 2px 0 0; white-space: pre-wrap; }
+.phone-row { display: flex; gap: 8px; align-items: flex-end; max-width: 420px; }
+.phone-row .field { flex: 1; }
 .review-rows { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: .875rem; }
 .review-rows dt { color: var(--ink-2); font-weight: 600; }
 .review-rows dd { margin: 0; white-space: pre-wrap; }
