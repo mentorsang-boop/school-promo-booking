@@ -225,7 +225,7 @@ table.data .lack { max-width: 260px; color: var(--ink-2); font-size: .75rem; }
 .a4 .doc-sub { color: var(--cv-sub); font-size: .86em; }
 .a4.p2 .body { gap: 22px; }
 .a4.p2 .sec h2 { margin-bottom: 8px; }
-.a4.p2 .sec p { white-space: pre-wrap; line-height: 1.75; }
+.a4.p2 .sec p { white-space: pre-wrap; line-height: 1.75; text-align: justify; text-justify: inter-word; word-break: keep-all; overflow-wrap: break-word; }
 
 @page { size: A4; margin: 0; }
 @media print {
@@ -248,3 +248,5 @@ table.data .lack { max-width: 260px; color: var(--ink-2); font-size: .75rem; }
 .add-row { margin-top: 10px; }
 .tab-next { display: flex; justify-content: flex-end; margin-top: 14px; }
 .form-grid .hint.full { grid-column: 1 / -1; margin: 0; }
+.tab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: 2px; border-radius: 999px; background: var(--brand); color: #fff; font-size: .75rem; font-weight: 700; line-height: 1; }
+a.co-item { color: inherit; text-decoration: none; }

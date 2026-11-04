@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.17';
+const VERSION = '1.18';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -296,6 +296,7 @@ function basicForm() {
   <section class="card" data-sec="동아리·봉사"><h2>동아리 활동 및 봉사 활동</h2>${guide('동아리·봉사')}${rowList('clubs', (i) => periodRow('clubs', i, 'name', '활동명', 'desc', '내용'))}${fbBlock('동아리·봉사')}</section>
   <section class="card" data-sec="제출 정보"><h2>제출 정보</h2>${guide('제출 정보')}<div class="form-grid">${input('company', '회사명', { req: 1 })}${input('writeDate', '작성일', { type: 'date' })}</div>
     <p class="hint">지원하는 회사가 바뀌면 회사명만 고쳐서 다시 내려받으면 됩니다.</p>${fbBlock('제출 정보')}</section>
+  ${isOwner() ? '<section class="card"><h2>AI 피드백용 파일</h2><p class="small muted">연락처, 주소, 생년월일, 이름을 뺀 이력서와 자기소개서를 면접관 기준 피드백 요청문과 함께 텍스트 파일로 내려받습니다. 다른 AI 서비스에 파일을 올려 피드백을 받으세요. 최고 관리자에게만 보입니다.</p><div><button class="btn" data-act="aiOne">AI 피드백용 다운로드</button></div></section>' : ''}
   ${isTeacher() ? '<section class="card"><h2>계정 관리</h2><div class="row"><button class="btn" data-act="resetPw">비밀번호 초기화</button>' + (isOwner() ? '<button class="btn btn-danger" data-act="delStudent">학생 계정 삭제</button>' : '') + '</div></section>' : ''}`;
 }
 function introForm() {
@@ -316,7 +317,7 @@ function viewEditor() {
   const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 첨삭 요청됨</span>` : `<span class="badge">${round}차 작성 중</span>`;
   const head = `<div class="head"><div>${teacher ? '<button class="btn-link" data-act="back">← 학생 목록</button>' : ''}<h1>${esc(owner.name)} 이력서</h1><p class="muted small">${classLabel(owner)} · ${esc(owner.login_id)}${owner.dept ? ' · ' + esc(owner.dept) : ''} · 진행률 ${pct}%</p></div>${badge}</div>
     <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
-  const tabs = `<div class="tabs" role="tablist">${[['edit', '기본정보'], ['intro', '자기소개서'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` ${state.feedbacks.length}` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`], ['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const tabs = `<div class="tabs" role="tablist">${[['edit', '기본정보'], ['intro', '자기소개서'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` <span class="tab-count">${state.feedbacks.length}</span>` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`], ['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
   if (studentDone() && (state.tab === 'review' || state.tab === 'preview')) state.tab = 'edit';
   let body = '';
   if (state.tab === 'review') body = viewReview();
@@ -701,6 +702,48 @@ function downloadExcel() {
   XLSX.utils.book_append_sheet(wb, ws, '학생 현황');
   XLSX.writeFile(wb, `이력서_학생현황_${new Date().toLocaleDateString('sv')}.xlsx`);
 }
+/* AI 피드백용 파일: 다른 AI 서비스에 올릴 수 있게 연락처·주소 등 개인정보를 빼고 텍스트로 만든다 */
+const AI_PROMPT = `[요청]
+아래는 직업교육 과정 고등학생의 취업용 이력서와 자기소개서입니다. 당신은 지원분야 회사의 채용 면접관입니다. 면접관 기준으로 학생별로 다음을 작성해 주세요.
+1. 전체 평가: 서류 통과 가능성(상/중/하)과 그 이유
+2. 항목별 평가: 이력서 각 항목과 자기소개서 네 항목의 강점과 약점
+3. 면접관이 의심하거나 물어볼 부분과 예상 면접 질문
+4. 추가해야 할 내용: 빠진 경험, 근거, 구체적인 수치, 자격 등
+5. 고쳐 쓸 문장: 원래 문장 → 고친 문장
+고등학생이라는 점은 고려하되 실제 채용 기준으로 솔직하게 평가해 주세요. 없는 사실을 지어내지 말고, 확인이 필요한 내용은 학생에게 물어볼 질문으로 남겨 주세요.
+개인정보 보호를 위해 이름, 연락처, 주소, 생년월일, 사진은 뺐습니다.`;
+function aiText(s, d, companies = []) {
+  const hide = (v) => [s.name, d.name].filter(Boolean).reduce((t, n) => t.split(n).join('○○'), String(v || '').trim());
+  const lines = (key, make) => d[key].filter((r) => !rowEmpty(r)).map((r) => `- ${hide(make(r))}`).join('\n') || '- (없음)';
+  const range = (r) => [r.from, r.to].filter(Boolean).join(' ~ ');
+  const intro = (src) => INTRO.map(([k, label]) => `[${label}]\n${hide(src[k]) || '(비어 있음)'}`).join('\n\n');
+  return [`==================== 학생 ${s.login_id} ====================`,
+    `지원분야: ${hide(d.applyField) || '(비어 있음)'}`, `지원 회사: ${hide(d.company) || '(비어 있음)'}`,
+    `\n## 학력\n- ${d.eduSchool} ${spacedPeriod(d.eduPeriod)} ${d.major} ${d.gradStatus}${d.edu2School ? `\n- ${d.edu2School} ${spacedPeriod(d.edu2Period)} (원적교)` : ''}`,
+    `\n## 자격 및 면허\n${lines('licenses', (r) => `${r.date} ${r.name} (${r.org})`)}`,
+    `\n## 수상 경력\n${lines('awards', (r) => `${r.date} ${r.text} (${r.org})`)}`,
+    `\n## 활동 경력\n${lines('activities', (r) => `${range(r)} ${r.text} (${r.org})`)}`,
+    `\n## 경력 사항\n${lines('careers', (r) => `${range(r)} ${r.place}${r.rank ? ` / ${r.rank}` : ''} / ${r.desc}`)}`,
+    `\n## 동아리 및 봉사 활동\n${lines('clubs', (r) => `${range(r)} ${r.name} / ${r.desc}`)}`,
+    `\n## 자기소개서\n${intro(d.intro)}`,
+    ...companies.map((c) => `\n## 추가 자기소개서: ${hide(c.company)} (지원분야 ${hide(c.intro.applyField ?? d.applyField)})\n${intro({ ...d.intro, ...c.intro })}`),
+  ].join('\n');
+}
+function saveText(name, body) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob(['\ufeff', body], { type: 'text/plain;charset=utf-8' }));
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+function downloadAi(all) {
+  const today = new Date().toLocaleDateString('sv');
+  if (!all) { saveText(`AI피드백용_${state.owner.login_id}_${today}.txt`, `${AI_PROMPT}\n\n${aiText(state.owner, state.doc, state.companies)}\n`); return; }
+  const list = (state.shownRows || []).filter((x) => x.doc);
+  if (!list.length) { toast('내려받을 이력서가 없습니다.'); return; }
+  saveText(`AI피드백용_학생${list.length}명_${today}.txt`, `${AI_PROMPT}\n\n${list.map((x) => aiText(x.s, x.doc)).join('\n\n')}\n`);
+  toast(`학생 ${list.length}명의 이력서를 내려받았습니다.`);
+}
 const studentUrl = () => new URL('./', location.href).href;
 function drawShareQr() {
   const box = $('#shareQr');
@@ -746,11 +789,12 @@ function viewTeacher() {
   const inClass = (x) => !state.classFilter || classKey(x.s) === state.classFilter;
   const match = (x) => inClass(x) && (state.filter === 'all' || x.key === state.filter || (state.filter === 'writing' && ['none', 'coWriting'].includes(x.key)) || (state.filter === 'review' && x.key === 'coReview'));
   const list = rows.filter((x) => match(x) && (!q || x.s.name.toLowerCase().includes(q) || x.s.login_id.includes(q)));
+  state.shownRows = list;
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
-  const item = (x) => `<tr><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
+  const item = (x) => `<tr><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.approved ? when(x.approved) : '-'}</td>
-    <td class="nowrap">${x.s.status === 'approved' ? `${x.approved ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">완성본 보기</a> ` : ''}<button class="btn btn-soft btn-sm" data-act="openStudent" data-v="${x.s.id}">열기</button>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
-  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button><button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
+    <td class="nowrap">${x.s.status === 'approved' ? `${x.approved ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">완성본 보기</a> ` : ''}<a class="btn btn-soft btn-sm" href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">열기</a>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
+  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${isOwner() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none') + count('coWriting'), '작성 중·시작 전')}${stat('review', count('review') + count('coReview'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
     <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
@@ -871,6 +915,8 @@ const ACT = {
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
   refresh: () => loadTeacher(),
   excel: () => downloadExcel(),
+  aiAll: () => downloadAi(true),
+  aiOne: async () => { if (state.dirty) await save(); downloadAi(false); },
   openDepts: async () => { await loadDepts(); state.view = 'depts'; render(); window.scrollTo(0, 0); },
   delDept: async (id) => {
     const d = state.depts.find((x) => String(x.id) === String(id));
@@ -883,13 +929,7 @@ const ACT = {
     const rows = (state.coRows || []).filter((c) => c.user_id === id);
     const s = state.students.find((x) => x.id === id);
     $('#modal').innerHTML = `<div class="modal-back"><div class="modal-box"><div class="row between"><h2 style="font-size:1.125rem">${esc(s.name)} 추가 자기소개서</h2><button class="btn btn-sm" data-act="closeModal">닫기</button></div>
-      <div class="co-list">${rows.map((c) => `<button class="co-item" data-act="coOpen" data-v="${id}|${c.id}"><b>${esc(c.company)}</b><span class="small muted">${esc(c.applyField || '지원분야 기본')}</span><span class="badge ${COMPANY_STATUS[c.status][1]}">${COMPANY_STATUS[c.status][0]}</span></button>`).join('')}</div></div></div>`;
-  },
-  coOpen: async (v) => {
-    const [id, company] = v.split('|');
-    $('#modal').innerHTML = '';
-    await openResume(state.students.find((x) => x.id === id));
-    state.tab = 'companies'; state.companyId = company; render(); window.scrollTo(0, 0);
+      <div class="co-list">${rows.map((c) => `<a class="co-item" href="admin.html?student=${id}&company=${c.id}" target="_blank" rel="noopener"><b>${esc(c.company)}</b><span class="small muted">${esc(c.applyField || '지원분야 기본')}</span><span class="badge ${COMPANY_STATUS[c.status][1]}">${COMPANY_STATUS[c.status][0]}</span></a>`).join('')}</div></div></div>`;
   },
   coAdd: async () => {
     const company = $('#newCompany').value.trim();
@@ -959,7 +999,6 @@ const ACT = {
     link.click();
   },
   filter: (v) => { state.filter = v; render(); },
-  openStudent: (id) => openResume(state.students.find((s) => s.id === id)),
   approve: async (id) => { const { error } = await sb.rpc('resume_decide_student', { student: id, decision: 'approved' }); await loadTeacher(); toast(error ? '승인하지 못했습니다.' : '승인했습니다.'); },
   reject: async (id) => { if (!confirm('가입을 거절할까요?')) return; const { error } = await sb.rpc('resume_decide_student', { student: id, decision: 'rejected' }); if (error) toast('처리하지 못했습니다.'); await loadTeacher(); },
   fbChoice: async (v) => {
@@ -1127,12 +1166,14 @@ async function boot() {
   if (!window.ADMIN_PAGE && profile.role === 'teacher') { location.replace('admin.html'); return; }
   state.profile = profile;
   if (profile.status !== 'approved') { state.view = 'pending'; render(); return; }
-  const direct = profile.role === 'teacher' && new URLSearchParams(location.search).get('resume');
+  const qs = new URLSearchParams(location.search);
+  const direct = profile.role === 'teacher' && (qs.get('resume') || qs.get('student'));
   if (direct) {
     const { data: owner } = await sb.from('resume_profiles').select().eq('id', direct).maybeSingle();
     if (owner) {
       await openResume(owner);
-      if (state.resume?.status === 'approved') { state.tab = 'output'; render(); }
+      if (qs.get('resume') && state.resume?.status === 'approved') { state.tab = 'output'; render(); }
+      if (qs.get('company')) { state.tab = 'companies'; state.companyId = qs.get('company'); render(); }
       return;
     }
   }
