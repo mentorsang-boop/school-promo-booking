@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.18';
+const VERSION = '1.19';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -17,6 +17,7 @@ const state = {
 const isTeacher = () => state.profile?.role === 'teacher';
 const isOwner = () => isTeacher() && !!state.profile.is_owner;
 const canEdit = () => isOwner() || (isTeacher() && !!state.profile.can_edit);
+const canAi = () => isOwner() || (isTeacher() && !!state.profile.can_ai_download);
 const canApprove = () => isOwner() || (isTeacher() && !!state.profile.can_approve);
 const classLabel = (s) => (s?.grade ? `${s.grade}학년 ${s.class_no}반${s.number ? ` ${s.number}번` : ''}` : '반 미지정');
 const numberOptions = (max, unit, value) => `<option value="">선택</option>${Array.from({ length: max }, (_, i) => `<option value="${i + 1}" ${+value === i + 1 ? 'selected' : ''}>${i + 1}${unit}</option>`).join('')}`;
@@ -296,7 +297,7 @@ function basicForm() {
   <section class="card" data-sec="동아리·봉사"><h2>동아리 활동 및 봉사 활동</h2>${guide('동아리·봉사')}${rowList('clubs', (i) => periodRow('clubs', i, 'name', '활동명', 'desc', '내용'))}${fbBlock('동아리·봉사')}</section>
   <section class="card" data-sec="제출 정보"><h2>제출 정보</h2>${guide('제출 정보')}<div class="form-grid">${input('company', '회사명', { req: 1 })}${input('writeDate', '작성일', { type: 'date' })}</div>
     <p class="hint">지원하는 회사가 바뀌면 회사명만 고쳐서 다시 내려받으면 됩니다.</p>${fbBlock('제출 정보')}</section>
-  ${isOwner() ? '<section class="card"><h2>AI 피드백용 파일</h2><p class="small muted">연락처, 주소, 생년월일, 이름을 뺀 이력서와 자기소개서를 면접관 기준 피드백 요청문과 함께 텍스트 파일로 내려받습니다. 다른 AI 서비스에 파일을 올려 피드백을 받으세요. 최고 관리자에게만 보입니다.</p><div><button class="btn" data-act="aiOne">AI 피드백용 다운로드</button></div></section>' : ''}
+  ${canAi() ? '<section class="card"><h2>AI 피드백용 파일</h2><p class="small muted">연락처, 주소, 생년월일, 이름을 뺀 이력서와 자기소개서를 면접관 기준 피드백 요청문과 함께 텍스트 파일로 내려받습니다. 다른 AI 서비스에 파일을 올려 피드백을 받으세요. 최고 관리자와 최고 관리자가 지정한 선생님에게만 보입니다.</p><div><button class="btn" data-act="aiOne">AI 피드백용 다운로드</button></div></section>' : ''}
   ${isTeacher() ? '<section class="card"><h2>계정 관리</h2><div class="row"><button class="btn" data-act="resetPw">비밀번호 초기화</button>' + (isOwner() ? '<button class="btn btn-danger" data-act="delStudent">학생 계정 삭제</button>' : '') + '</div></section>' : ''}`;
 }
 function introForm() {
@@ -770,15 +771,15 @@ function myInfoCard() {
 }
 function ownerCard() {
   const rows = (state.teachers || []).map((t) => {
-    if (t.is_owner) return `<tr><td class="strong">${esc(t.name)}</td><td>${esc(t.login_id)}</td><td colspan="4" class="muted">최고 관리자 (모든 권한)</td></tr>`;
+    if (t.is_owner) return `<tr><td class="strong">${esc(t.name)}</td><td>${esc(t.login_id)}</td><td colspan="5" class="muted">최고 관리자 (모든 권한)</td></tr>`;
     const chips = (state.assign || []).filter((c) => c.teacher_id === t.id).map((c) => `<span class="chip">${c.grade}학년 ${c.class_no}반<button data-act="delClass" data-v="${t.id}|${c.grade}|${c.class_no}" aria-label="${c.grade}학년 ${c.class_no}반 빼기">×</button></span>`).join('');
     const perm = (k, label) => `<label class="check"><input type="checkbox" data-perm="${k}" data-teacher="${t.id}" ${t[k] ? 'checked' : ''}><span>${label}</span></label>`;
     return `<tr><td class="strong">${esc(t.name)}</td><td>${esc(t.login_id)}</td><td><div class="chips">${chips || '<span class="muted small">담당 반 없음</span>'}</div>
       <div class="class-add"><select id="g-${t.id}" aria-label="학년">${numberOptions(3, '학년')}</select><select id="c-${t.id}" aria-label="반">${numberOptions(20, '반')}</select><button class="btn btn-sm" data-act="addClass" data-v="${t.id}">추가</button></div></td>
-      <td>${perm('can_view_all', '전체 반 보기')}</td><td>${perm('can_edit', '내용 수정')}</td><td>${perm('can_approve', '최종 승인')}</td></tr>`;
+      <td>${perm('can_view_all', '전체 반 보기')}</td><td>${perm('can_edit', '내용 수정')}</td><td>${perm('can_approve', '최종 승인')}</td><td>${perm('can_ai_download', 'AI 피드백용 다운로드')}</td></tr>`;
   }).join('');
   return `<section class="card"><h2>담임·권한 관리</h2><p class="small muted">최고 관리자만 보입니다. 담임은 담당 반 학생의 이력서만 볼 수 있습니다. 학생 가입 승인은 모든 선생님이 할 수 있습니다. 새 선생님은 교사 인증 코드로 가입한 뒤 여기에 나타납니다.</p>
-    <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>아이디</th><th>담당 반</th><th colspan="3">권한</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    <div class="table-scroll"><table class="data"><thead><tr><th>이름</th><th>아이디</th><th>담당 반</th><th colspan="4">권한</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 function viewTeacher() {
   const rows = studentRows();
@@ -794,7 +795,7 @@ function viewTeacher() {
   const item = (x) => `<tr><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.approved ? when(x.approved) : '-'}</td>
     <td class="nowrap">${x.s.status === 'approved' ? `${x.approved ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">완성본 보기</a> ` : ''}<a class="btn btn-soft btn-sm" href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">열기</a>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
-  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${isOwner() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
+  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none') + count('coWriting'), '작성 중·시작 전')}${stat('review', count('review') + count('coReview'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
     <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
