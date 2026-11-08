@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.19';
+const VERSION = '1.20';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -318,7 +318,7 @@ function viewEditor() {
   const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 첨삭 요청됨</span>` : `<span class="badge">${round}차 작성 중</span>`;
   const head = `<div class="head"><div>${teacher ? '<button class="btn-link" data-act="back">← 학생 목록</button>' : ''}<h1>${esc(owner.name)} 이력서</h1><p class="muted small">${classLabel(owner)} · ${esc(owner.login_id)}${owner.dept ? ' · ' + esc(owner.dept) : ''} · 진행률 ${pct}%</p></div>${badge}</div>
     <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
-  const tabs = `<div class="tabs" role="tablist">${[['edit', '기본정보'], ['intro', '자기소개서'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` <span class="tab-count">${state.feedbacks.length}</span>` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`], ['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const tabs = `<div class="tabs" role="tablist">${[['edit', '기본정보'], ['intro', '자기소개서'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` <span class="tab-count">${state.feedbacks.length}</span>` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`]] : []), ...(r.status === 'approved' || teacher ? [['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
   if (studentDone() && (state.tab === 'review' || state.tab === 'preview')) state.tab = 'edit';
   let body = '';
   if (state.tab === 'review') body = viewReview();
@@ -347,7 +347,7 @@ function viewEditor() {
 /* 차수 보기와 승인 */
 // 완성된 학생에게는 첨삭과 미리보기를 보여 주지 않는다
 const studentDone = () => !isTeacher() && state.resume?.status === 'approved';
-const canOutput = () => state.resume?.status === 'approved' && state.tab === 'output';
+const canOutput = () => (state.resume?.status === 'approved' || isTeacher()) && state.tab === 'output';
 // 미리보기에서는 보고 있는 차수까지의 변경 내역을 차수별 색으로 표시한다 (4는 승인 시점의 완성본)
 const changeChain = () => {
   if (state.tab !== 'preview') return null;
@@ -408,7 +408,7 @@ async function setCompany(id, patch, message) {
 }
 function viewOutput() {
   const approved = (state.companies || []).filter((c) => c.status === 'approved');
-  return `<section class="card">${approved.length ? `<div class="field"><label for="outChoice">출력할 자기소개서</label><select id="outChoice"><option value="">기본 (${esc(state.doc.company || '회사명 없음')})</option>${approved.map((c) => `<option value="${c.id}" ${state.outputCompany === c.id ? 'selected' : ''}>${esc(c.company)}</option>`).join('')}</select></div>` : ''}<div class="row"><button class="btn btn-primary" data-act="print">프린트</button><button class="btn" data-act="pdf">PDF 다운로드</button></div>
+  return `<section class="card">${state.resume.status === 'approved' ? '' : '<div class="notice warn">아직 최종 승인 전입니다. 지금까지 작성한 내용이 그대로 출력됩니다.</div>'}${approved.length ? `<div class="field"><label for="outChoice">출력할 자기소개서</label><select id="outChoice"><option value="">기본 (${esc(state.doc.company || '회사명 없음')})</option>${approved.map((c) => `<option value="${c.id}" ${state.outputCompany === c.id ? 'selected' : ''}>${esc(c.company)}</option>`).join('')}</select></div>` : ''}<div class="row"><button class="btn btn-primary" data-act="print">프린트</button><button class="btn" data-act="pdf">PDF 다운로드</button></div>
     <p class="hint">휴대폰에서 프린트가 어려우면 PDF로 내려받아 사용하세요. 회사가 바뀌면 기본정보 탭에서 회사명을 고친 뒤 다시 출력하세요.</p></section><div class="preview" id="preview"></div>`;
 }
 function viewReview() {
@@ -794,7 +794,7 @@ function viewTeacher() {
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
   const item = (x) => `<tr><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.approved ? when(x.approved) : '-'}</td>
-    <td class="nowrap">${x.s.status === 'approved' ? `${x.approved ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">완성본 보기</a> ` : ''}<a class="btn btn-soft btn-sm" href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">열기</a>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
+    <td class="nowrap">${x.s.status === 'approved' ? `${x.doc ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">${x.approved ? '완성본 프린트' : '프린트'}</a> ` : ''}<a class="btn btn-soft btn-sm" href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">열기</a>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
   return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none') + count('coWriting'), '작성 중·시작 전')}${stat('review', count('review') + count('coReview'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
@@ -910,7 +910,7 @@ const ACT = {
     const patch = { next: { status: 'draft', round: round + 1 }, approve: { status: 'approved', approved_at: new Date().toISOString() }, reopen: { status: 'draft', approved_at: null } }[kind];
     const { data, error } = await sb.from('resumes').update(patch).eq('user_id', r.user_id).eq('version', state.resume.version).select().maybeSingle();
     if (error || !data) { toast('처리하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
-    state.resume = data; state.versionView = null; if (state.tab === 'output') state.tab = 'edit'; render();
+    state.resume = data; state.versionView = null; if (state.tab === 'output' && !isTeacher()) state.tab = 'edit'; render();
     toast({ next: '피드백을 전송했습니다.', approve: '최종 승인했습니다.', reopen: '최종 승인을 취소했습니다.' }[kind]);
   },
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
@@ -1173,7 +1173,7 @@ async function boot() {
     const { data: owner } = await sb.from('resume_profiles').select().eq('id', direct).maybeSingle();
     if (owner) {
       await openResume(owner);
-      if (qs.get('resume') && state.resume?.status === 'approved') { state.tab = 'output'; render(); }
+      if (qs.get('resume')) { state.tab = 'output'; render(); }
       if (qs.get('company')) { state.tab = 'companies'; state.companyId = qs.get('company'); render(); }
       return;
     }
