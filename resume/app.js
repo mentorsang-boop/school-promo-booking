@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.20';
+const VERSION = '1.21';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -12,7 +12,7 @@ const $ = (s) => document.querySelector(s);
 const state = {
   profile: null, view: 'auth', authTab: 'login', tab: 'edit',
   doc: null, resume: null, owner: null, feedbacks: [], photoUrl: '', saveState: '', timer: null, saving: false, dirty: false,
-  students: [], resumes: [], filter: 'all', search: '', tg: null,
+  students: [], resumes: [], filter: 'all', search: '', tg: null, picked: new Set(),
 };
 const isTeacher = () => state.profile?.role === 'teacher';
 const isOwner = () => isTeacher() && !!state.profile.is_owner;
@@ -609,7 +609,7 @@ async function uploadPhoto(file) {
 async function loadTeacher() {
   const [p, r, f, co] = await Promise.all([
     sb.from('resume_profiles').select().eq('role', 'student').order('grade').order('class_no').order('number').order('login_id'),
-    sb.from('resumes').select('user_id,data,photo_path,status,round,approved_at,submitted_at,updated_at'),
+    sb.from('resumes').select('user_id,data,photo_path,status,round,version,approved_at,submitted_at,updated_at'),
     sb.from('resume_feedbacks').select('student_id,done_at').not('sent_at', 'is', null),
     sb.from('resume_companies').select('id,user_id,company,status,applyField:intro->>applyField').order('created_at'),
   ]);
@@ -686,7 +686,7 @@ function studentRows() {
       lack: doc ? missing(doc, !!r.photo_path) : [],
       fb: (state.fbRows || []).filter((f) => f.student_id === s.id).length,
       fbDone: (state.fbRows || []).filter((f) => f.student_id === s.id && f.done_at).length,
-      round: r?.round || 1, updated: r?.updated_at, approved: r?.approved_at,
+      r, round: r?.round || 1, updated: r?.updated_at, approved: r?.approved_at,
     };
   });
 }
@@ -745,6 +745,71 @@ function downloadAi(all) {
   saveText(`AI피드백용_학생${list.length}명_${today}.txt`, `${AI_PROMPT}\n\n${list.map((x) => aiText(x.s, x.doc)).join('\n\n')}\n`);
   toast(`학생 ${list.length}명의 이력서를 내려받았습니다.`);
 }
+/* 일괄 처리: 체크한 학생을 한 번에 피드백 전송, 최종 승인, 프린트한다 */
+const pickable = (x) => x.s.status === 'approved' && !!x.r;
+const pickedRows = () => studentRows().filter((x) => pickable(x) && state.picked.has(x.s.id));
+const bulkFeedbackOk = (x) => x.r.status === 'submitted' && (x.r.round || 1) < 3;
+const bulkApproveOk = (x) => x.r.status !== 'approved';
+function bulkBar() {
+  const rows = pickedRows();
+  if (!rows.length) return '<div class="bulk-bar"><span class="muted small">학생을 체크하면 피드백 전송, 최종 승인, 프린트를 한 번에 할 수 있습니다.</span></div>';
+  const fb = rows.filter(bulkFeedbackOk).length;
+  const ap = rows.filter(bulkApproveOk).length;
+  return `<div class="bulk-bar on"><b>${rows.length}명 선택</b><div class="row"><button class="btn btn-sm" data-act="bulkFeedback" ${fb ? '' : 'disabled'}>일괄 피드백 전송 (${fb}명)</button>${canApprove() ? `<button class="btn btn-sm btn-primary" data-act="bulkApprove" ${ap ? '' : 'disabled'}>일괄 최종 승인 (${ap}명)</button>` : ''}<button class="btn btn-sm" data-act="bulkPrint">일괄 프린트 (${rows.length}명)</button><button class="btn-link" data-act="bulkClear">선택 해제</button></div></div>`;
+}
+async function bulkReview(kind) {
+  const rows = pickedRows();
+  const ok = rows.filter(kind === 'next' ? bulkFeedbackOk : bulkApproveOk);
+  if (!ok.length) return;
+  const skip = rows.length - ok.length;
+  const ids = ok.map((x) => x.s.id);
+  const { data: unsent } = await sb.from('resume_feedbacks').select('student_id').in('student_id', ids).is('sent_at', null);
+  const unsentN = (unsent || []).length;
+  const names = ok.map((x) => x.s.name).join(', ');
+  const ask = kind === 'next'
+    ? `${ok.length}명에게 작성해 둔 피드백 ${unsentN}건을 전송하고 다음 차수 수정으로 넘길까요?\n${names}${skip ? `\n첨삭 요청 상태가 아닌 ${skip}명은 건너뜁니다.` : ''}`
+    : `${ok.length}명을 최종 승인할까요? 학생이 프린트와 다운로드를 할 수 있게 됩니다.\n${names}${skip ? `\n이미 승인된 ${skip}명은 건너뜁니다.` : ''}${unsentN ? `\n전송하지 않은 피드백 ${unsentN}건은 학생에게 보이지 않습니다.` : ''}`;
+  if (!confirm(ask)) return;
+  toast('처리하고 있습니다…');
+  const now = new Date().toISOString();
+  if (kind === 'next' && unsentN) {
+    const sent = await sb.from('resume_feedbacks').update({ sent_at: now }).in('student_id', ids).is('sent_at', null);
+    if (sent.error) { toast('피드백을 전송하지 못했습니다. 다시 시도해 주세요.'); return; }
+  }
+  const results = await Promise.all(ok.map(async (x) => {
+    const patch = kind === 'next' ? { status: 'draft', round: (x.r.round || 1) + 1 } : { status: 'approved', approved_at: now };
+    const { data, error } = await sb.from('resumes').update(patch).eq('user_id', x.s.id).eq('version', x.r.version).select('user_id').maybeSingle();
+    return !error && data ? null : x.s.name;
+  }));
+  const failed = results.filter(Boolean);
+  state.picked.clear();
+  await loadTeacher();
+  const done = ok.length - failed.length;
+  toast(`${done}명을 ${kind === 'next' ? '다음 차수로 넘기고 피드백을 전송' : '최종 승인'}했습니다.${failed.length ? ` 처리하지 못한 학생: ${failed.join(', ')} (새로고침 후 다시 시도해 주세요)` : ''}`);
+}
+async function bulkPrint() {
+  const rows = pickedRows();
+  if (!rows.length) return;
+  toast(`${rows.length}명의 이력서를 준비하고 있습니다…`);
+  const photo = async (path) => {
+    if (!path) return '';
+    const { data } = await sb.storage.from('resume-photos').download(path);
+    return data ? new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(data); }) : '';
+  };
+  const docs = await Promise.all(rows.map(async (x) => {
+    const d = mergeDoc(x.r.data, x.s);
+    d.name = x.s.name;
+    if (x.s.dept) d.major = x.s.dept;
+    return resumeDocHTML(d, await photo(x.r.photo_path));
+  }));
+  const paper = $('#paper');
+  paper.innerHTML = docs.join('');
+  fitPages(paper);
+  await document.fonts.ready;
+  document.body.classList.remove('no-print');
+  window.print();
+  document.body.classList.add('no-print');
+}
 const studentUrl = () => new URL('./', location.href).href;
 function drawShareQr() {
   const box = $('#shareQr');
@@ -791,14 +856,16 @@ function viewTeacher() {
   const match = (x) => inClass(x) && (state.filter === 'all' || x.key === state.filter || (state.filter === 'writing' && ['none', 'coWriting'].includes(x.key)) || (state.filter === 'review' && x.key === 'coReview'));
   const list = rows.filter((x) => match(x) && (!q || x.s.name.toLowerCase().includes(q) || x.s.login_id.includes(q)));
   state.shownRows = list;
+  const canPick = list.filter(pickable);
+  const allOn = canPick.length && canPick.every((x) => state.picked.has(x.s.id));
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
-  const item = (x) => `<tr><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
+  const item = (x) => `<tr><td class="pick">${pickable(x) ? `<input type="checkbox" data-pick="${x.s.id}" ${state.picked.has(x.s.id) ? 'checked' : ''} aria-label="${esc(x.s.name)} 선택">` : ''}</td><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}">${classLabel(x.s)}</button>` : classLabel(x.s)}</td><td>${esc(x.s.login_id)}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap">${when(x.updated)}</td><td class="nowrap">${x.approved ? when(x.approved) : '-'}</td>
     <td class="nowrap">${x.s.status === 'approved' ? `${x.doc ? `<a class="btn btn-primary btn-sm" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener">${x.approved ? '완성본 프린트' : '프린트'}</a> ` : ''}<a class="btn btn-soft btn-sm" href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">열기</a>` : `<button class="btn btn-primary btn-sm" data-act="approve" data-v="${x.s.id}">승인</button>${x.key === 'pending' ? ` <button class="btn btn-sm" data-act="reject" data-v="${x.s.id}">거절</button>` : ''}`}${isOwner() ? ` <button class="btn btn-sm btn-danger" data-act="delRow" data-v="${x.s.id}">삭제</button>` : ''}</td></tr>`;
   return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${stat('all', rows.length, '전체 학생')}${stat('pending', count('pending'), '가입 승인 대기')}${stat('writing', count('writing') + count('none') + count('coWriting'), '작성 중·시작 전')}${stat('review', count('review') + count('coReview'), '첨삭 요청')}${stat('done', count('done'), '완성')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
-    <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div><div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><div class="form-grid"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>${bulkBar()}<div class="table-scroll"><table class="data"><thead><tr><th class="pick">${canPick.length ? `<input type="checkbox" id="pickAll" ${allOn ? 'checked' : ''} aria-label="보이는 학생 모두 선택">` : ''}</th><th>반·번호</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="13" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     ${isOwner() ? schoolCard() : ''}${myInfoCard()}${isOwner() ? ownerCard() : ''}<section class="card"><div class="row between"><h2>텔레그램 알림</h2><span id="tgState">${tgLabel()}</span></div>
       <div id="tgBox">${tgBoxHTML()}</div></section>`);
 }
@@ -917,6 +984,10 @@ const ACT = {
   refresh: () => loadTeacher(),
   excel: () => downloadExcel(),
   aiAll: () => downloadAi(true),
+  bulkFeedback: () => bulkReview('next'),
+  bulkApprove: () => bulkReview('approve'),
+  bulkPrint: () => bulkPrint(),
+  bulkClear: () => { state.picked.clear(); render(); },
   aiOne: async () => { if (state.dirty) await save(); downloadAi(false); },
   openDepts: async () => { await loadDepts(); state.view = 'depts'; render(); window.scrollTo(0, 0); },
   delDept: async (id) => {
@@ -1069,6 +1140,8 @@ document.addEventListener('change', (e) => {
   }
   if (t.id === 'outChoice') { state.outputCompany = t.value; render(); return; }
   if (t.id === 'classFilter') { state.classFilter = t.value; render(); return; }
+  if (t.dataset.pick) { if (t.checked) state.picked.add(t.dataset.pick); else state.picked.delete(t.dataset.pick); render(); return; }
+  if (t.id === 'pickAll') { (state.shownRows || []).filter(pickable).forEach((x) => (t.checked ? state.picked.add(x.s.id) : state.picked.delete(x.s.id))); render(); return; }
   if (t.dataset.perm) {
     sb.from('resume_profiles').update({ [t.dataset.perm]: t.checked }).eq('id', t.dataset.teacher).then(({ error }) => { toast(error ? '권한을 저장하지 못했습니다.' : '권한을 저장했습니다.'); return loadTeacher(); });
     return;
