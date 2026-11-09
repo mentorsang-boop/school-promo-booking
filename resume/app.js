@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.25';
+const VERSION = '1.27';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -321,10 +321,30 @@ async function loadProgram(owner) {
   ]);
   state.program = { me: me.data || null, events: ev.data || [] };
 }
+const KIND = { 학사: '학사일정', 취업: '취업부 프로그램' };
+const kindOf = (e) => (e.kind === '학사' ? '학사' : '취업');
+const kindTag = (e) => `<span class="kind k-${kindOf(e) === '학사' ? 'school' : 'job'}">${KIND[kindOf(e)]}</span>`;
+// 시간 글자를 고르기 쉬운 형태로 나눈다: 종일 / 교시 / 시각 / 그 밖의 글
+function parsePeriod(p) {
+  const s = String(p || '').trim();
+  if (!s) return { mode: 'day' };
+  let m = s.match(/^(\d)\s*(?:교시)?\s*(~)?\s*(\d)?\s*(?:교시)?\s*$/);
+  if (m) return { mode: 'class', from: m[1], to: m[3] || (m[2] ? '' : m[1]) };
+  m = s.match(/^(\d{1,2}):(\d{2})\s*~?$/);
+  if (m) return { mode: 'time', t: `${m[1].padStart(2, '0')}:${m[2]}` };
+  return { mode: 'etc', text: s };
+}
+function buildPeriod(v) {
+  if (v.mode === 'class') return !v.to ? `${v.from}교시~` : v.to === v.from ? `${v.from}교시` : `${v.from}~${v.to}교시`;
+  if (v.mode === 'time') return v.t ? `${v.t}~` : '';
+  if (v.mode === 'etc') return String(v.text || '').trim();
+  return '';
+}
+const deptList = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
 const eventFor = (me, dept) => (e) => (e.grp === '전체' || String(me?.grp || '') === e.grp)
-  && (!e.dept || (me?.dept || dept || '').includes(e.dept))
+  && (!deptList(e.dept).length || deptList(e.dept).some((d) => (me?.dept || dept || '').includes(d)))
   && (!e.company || (me?.company || '') === e.company);
-const eventTarget = (e) => [e.grp === '전체' ? '' : `${e.grp}그룹`, e.dept, e.company].filter(Boolean).join(' · ') || '전체';
+const eventTarget = (e) => [e.grp === '전체' ? '' : `${e.grp}그룹`, deptList(e.dept).join('·'), e.company].filter(Boolean).join(' · ') || '전체';
 /* 달력: 일요일부터 시작하는 한 달 칸에 일정을 넣는다 */
 function calendarHTML(events, label = (e) => e.title) {
   const today = todayIso();
@@ -341,10 +361,11 @@ function calendarHTML(events, label = (e) => e.title) {
     if (k >= 35 && d.getMonth() !== m - 1) break;
     const iso = d.toLocaleDateString('sv');
     const list = byDay[iso] || [];
-    cells.push(`<div class="cal-cell${d.getMonth() !== m - 1 ? ' out' : ''}${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() === 0 ? ' sun' : d.getDay() === 6 ? ' sat' : ''}"><span class="cal-d">${d.getDate()}</span>${list.map((e) => `<div class="cal-ev${/이력서 제출/.test(e.title) ? ' key' : ''}" title="${esc(`${e.title}${e.period ? ` · ${e.period}` : ''}${e.place ? ` · ${e.place}` : ''}`)}"><b>${esc(label(e))}</b>${e.period ? `<small>${esc(e.period)}</small>` : ''}</div>`).join('')}</div>`);
+    cells.push(`<div class="cal-cell${d.getMonth() !== m - 1 ? ' out' : ''}${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() === 0 ? ' sun' : d.getDay() === 6 ? ' sat' : ''}"><span class="cal-d">${d.getDate()}</span>${list.map((e) => `<div class="cal-ev ${kindOf(e) === '학사' ? 'k-school' : 'k-job'}${/이력서 제출/.test(e.title) ? ' key' : ''}" title="${esc(`${e.title}${e.period ? ` · ${e.period}` : ''}${e.place ? ` · ${e.place}` : ''}`)}"><b>${esc(label(e))}</b>${e.period ? `<small>${esc(e.period)}</small>` : ''}</div>`).join('')}</div>`);
   }
   const step = (n) => { const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
   return `<div class="cal"><div class="cal-head"><button class="btn btn-sm" data-act="calMove" data-v="${step(-1)}" aria-label="이전 달">‹</button><b>${y}년 ${m}월</b><button class="btn btn-sm" data-act="calMove" data-v="${step(1)}" aria-label="다음 달">›</button></div>
+    <div class="cal-legend"><span class="cal-ev k-job">취업부 프로그램</span><span class="cal-ev k-school">학사일정</span><span class="cal-ev key">이력서 제출일</span></div>
     <div class="cal-grid">${WEEK.map((w, k) => `<div class="cal-w${k === 0 ? ' sun' : k === 6 ? ' sat' : ''}">${w}</div>`).join('')}${cells.join('')}</div></div>`;
 }
 function viewHome() {
@@ -362,7 +383,7 @@ function viewHome() {
     ${me ? '' : '<div class="notice warn">취업역량강화 프로그램 명단에서 찾지 못했습니다. 반과 번호가 맞는지 확인하고, 프로그램에 참여한다면 선생님께 말씀해 주세요.</div>'}
     <div class="home-grid">${tile('그룹', me?.grp ? `${me.grp}그룹` : '', 'hl')}${tile('채용연계', me?.hire_type, 'hl')}${tile('희망 분야', me?.field)}${tile('연계 업체', me?.company)}</div>
     <div class="home-grid two">${tile('이력서 진행', `${step} · 진행률 ${progress(state.doc, !!state.photoUrl)}%`)}${tile('다음 이력서 제출일', due ? `${dayLabel(due.day)}${due.period ? ` ${due.period}` : ''}` : '', due ? 'warn' : '')}</div></section>`;
-  const todo = upcoming.slice(0, 5).map((e) => `<li${e.day === today ? ' class="today"' : ''}><b>${dayLabel(e.day)}</b><span>${esc(e.title)}${e.period ? ` · ${esc(e.period)}` : ''}${e.place ? ` · ${esc(e.place)}` : ''}</span></li>`).join('');
+  const todo = upcoming.slice(0, 5).map((e) => `<li${e.day === today ? ' class="today"' : ''}><b>${dayLabel(e.day)}</b><span>${kindTag(e)} ${esc(e.title)}${e.period ? ` · ${esc(e.period)}` : ''}${e.place ? ` · ${esc(e.place)}` : ''}</span></li>`).join('');
   return `${status}
     <section class="card"><h2>나의 일정</h2>${list.length ? calendarHTML(list) : '<p class="muted">등록된 일정이 없습니다.</p>'}
       ${todo ? `<h3 class="sub-h">다가오는 일정</h3><ul class="todo">${todo}</ul>` : ''}
@@ -677,16 +698,19 @@ async function uploadPhoto(file) {
   }
 }
 async function loadTeacher() {
-  const [p, r, f, co] = await Promise.all([
+  const [p, r, f, co, pr, pe] = await Promise.all([
     sb.from('resume_profiles').select().eq('role', 'student').order('grade').order('class_no').order('number').order('login_id'),
     sb.from('resumes').select('user_id,data,photo_path,status,round,version,approved_at,submitted_at,updated_at'),
     sb.from('resume_feedbacks').select('student_id,done_at').not('sent_at', 'is', null),
     sb.from('resume_companies').select('id,user_id,company,status,applyField:intro->>applyField').order('created_at'),
+    sb.from('resume_program_roster').select().order('class_no').order('number'),
+    sb.from('resume_program_events').select().order('day').order('id'),
   ]);
   state.students = p.data || [];
   state.resumes = r.data || [];
   state.fbRows = f.data || [];
   state.coRows = co.data || [];
+  state.progRoster = pr.data || []; state.progEvents = pe.data || [];
   if (isOwner()) {
     const [t, c] = await Promise.all([sb.from('resume_profiles').select().eq('role', 'teacher').order('created_at'), sb.from('resume_teacher_classes').select()]);
     state.teachers = t.data || []; state.assign = c.data || [];
@@ -756,19 +780,20 @@ function studentRows() {
       lack: doc ? missing(doc, !!r.photo_path) : [],
       fb: (state.fbRows || []).filter((f) => f.student_id === s.id).length,
       fbDone: (state.fbRows || []).filter((f) => f.student_id === s.id && f.done_at).length,
+      prog: (state.progRoster || []).find((x) => x.class_no === s.class_no && x.number === s.number) || null,
       r, round: r?.round || 1, updated: r?.updated_at, approved: r?.approved_at,
     };
   });
 }
 function downloadExcel() {
   const rows = studentRows().map((x) => ({
-    학년: x.s.grade || '', 반: x.s.class_no || '', 번호: x.s.number || '', 학번: x.s.login_id, 이름: x.s.name, 학과: x.doc?.major || x.s.dept, 상태: statusText(x), '진행률(%)': x.pct,
+    학년: x.s.grade || '', 반: x.s.class_no || '', 번호: x.s.number || '', 학번: x.s.login_id, 이름: x.s.name, 학과: x.doc?.major || x.s.dept, 그룹: x.prog?.grp ? `${x.prog.grp}그룹` : '', 채용연계: x.prog?.hire_type || '', '희망 분야': x.prog?.field || '', '연계 업체': x.prog?.company || '', 상태: statusText(x), '진행률(%)': x.pct,
     지원분야: x.doc?.applyField || '', 회사명: x.doc?.company || '', '미입력 항목': x.lack.join(', '), '피드백 수': x.fb, '학생 응답': x.fbDone,
     '최근 저장': x.updated ? new Date(x.updated).toLocaleString('ko-KR') : '', 승인일: x.approved ? new Date(x.approved).toLocaleString('ko-KR') : '',
   }));
   if (!rows.length) { toast('내려받을 학생이 없습니다.'); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [6, 6, 6, 12, 10, 16, 10, 9, 14, 18, 40, 9, 12, 22, 22].map((wch) => ({ wch }));
+  ws['!cols'] = [6, 6, 6, 12, 10, 16, 7, 10, 12, 14, 10, 9, 14, 18, 40, 9, 12, 22, 22].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '학생 현황');
   XLSX.writeFile(wb, `이력서_학생현황_${new Date().toLocaleDateString('sv')}.xlsx`);
@@ -891,35 +916,120 @@ function drawShareQr() {
   if (box && window.QRCode) new QRCode(box, { text: studentUrl(), width: 132, height: 132 });
 }
 const HIRE_TYPES = ['순수취업', '일학습', '계약학과'];
+const opt = (list, v) => list.map((x) => { const [val, label] = [].concat(x); return `<option value="${esc(val)}" ${String(val) === String(v ?? '') ? 'selected' : ''}>${esc(label ?? val)}</option>`; }).join('');
+const unsaved = (flag) => (flag ? '<span class="badge warn">저장하지 않은 변경이 있습니다</span>' : '');
+function viewRoster() {
+  const roster = state.progRoster || [];
+  const joined = (r) => state.students.some((s) => s.class_no === +r.class_no && s.number === +r.number);
+  const q = (state.rosterQ || '').trim();
+  const shown = roster.map((r, i) => [r, i]).filter(([r]) => !q || r.name.includes(q) || r.dept.includes(q) || r.company.includes(q) || `${r.class_no}반`.includes(q));
+  const depts = [...new Set([...(state.depts || []).map((d) => d.name), ...roster.map((r) => r.dept)].filter(Boolean))];
+  const inp = (i, k, v, w, type = 'text') => `<input type="${type}" data-ro="${i}" data-k="${k}" value="${esc(v ?? '')}" style="width:${w}" aria-label="${k}">`;
+  const rows = shown.map(([r, i]) => `<tr><td>${inp(i, 'class_no', r.class_no, '4em', 'number')}</td><td>${inp(i, 'number', r.number, '4em', 'number')}</td><td>${inp(i, 'name', r.name, '6.5em')}</td>
+    <td><input list="deptList" data-ro="${i}" data-k="dept" value="${esc(r.dept)}" style="width:9em" aria-label="학과"></td>
+    <td><select data-ro="${i}" data-k="hire_type" aria-label="채용연계">${opt([['', '선택'], ...HIRE_TYPES, ...(r.hire_type && !HIRE_TYPES.includes(r.hire_type) ? [r.hire_type] : [])], r.hire_type)}</select></td>
+    <td>${inp(i, 'field', r.field, '7em')}</td><td>${inp(i, 'company', r.company, '8em')}</td>
+    <td><select data-ro="${i}" data-k="grp" aria-label="그룹">${opt([['', '-'], ['1', '1그룹'], ['2', '2그룹'], ['3', '3그룹']], r.grp)}</select></td>
+    <td>${joined(r) ? '<span class="badge ok">가입</span>' : '<span class="badge off">미가입</span>'}</td><td><button class="icon-btn" data-act="roDel" data-v="${i}" title="명단에서 빼기" aria-label="${esc(r.name)} 명단에서 빼기">🗑️</button></td></tr>`).join('');
+  // 학과별 인원표 (원본 엑셀의 요약표와 같은 모양)
+  const byDept = [...new Set(roster.map((r) => r.dept || '학과 없음'))];
+  const cnt = (f) => roster.filter(f).length;
+  const sumRows = byDept.map((d) => `<tr><td>${esc(d)}</td><td class="num">${cnt((r) => (r.dept || '학과 없음') === d)}</td>${HIRE_TYPES.map((t) => `<td class="num">${cnt((r) => (r.dept || '학과 없음') === d && r.hire_type === t)}</td>`).join('')}</tr>`).join('');
+  const missingStudents = state.students.filter((s) => s.status === 'approved' && !roster.some((r) => +r.class_no === s.class_no && +r.number === s.number));
+  return shell(`<div class="head"><div><button class="btn-link" data-act="back">← 학생 목록</button><h1>학생 관리</h1><p class="muted small"><a href="#deptCard">학과 관리로 이동 ↓</a> · 취업역량강화 프로그램 참여 학생의 채용연계, 희망 분야, 연계 업체, 그룹을 관리합니다. 학생은 반·번호로 연결되어 홈 화면에 이 내용이 보입니다.</p></div>${unsaved(state.rosterDirty)}</div>
+    <section class="card"><h2>엑셀 파일로 관리</h2><p class="small muted">명단을 내려받아 고친 뒤 올리면 아래 표에 불러옵니다. 확인하고 <b>저장</b>을 눌러야 반영됩니다. 처음 받은 원본 양식(연번, 채용연계, 학과, 반, 번호, 성별, 이름, 연락처, 분야, 업체, 그룹)도 올릴 수 있으며 연락처와 성별은 저장하지 않습니다.</p>
+      <div class="row"><button class="btn" data-act="rosterDownload">명단 엑셀로 내려받기</button><label class="btn btn-primary" for="rosterUpload">엑셀 파일 올리기</label><input id="rosterUpload" type="file" accept=".xlsx,.xls,.csv" hidden></div></section>
+    <section class="card"><h2>인원 현황</h2><div class="sum-wrap"><div class="table-scroll"><table class="data"><thead><tr><th>학과</th><th>희망자</th>${HIRE_TYPES.map((t) => `<th>${t}</th>`).join('')}</tr></thead><tbody>${sumRows}<tr class="strong"><td>합계</td><td class="num">${roster.length}</td>${HIRE_TYPES.map((t) => `<td class="num">${cnt((r) => r.hire_type === t)}</td>`).join('')}</tr></tbody></table></div>
+      <div class="table-scroll"><table class="data"><thead><tr><th>그룹</th><th>인원</th></tr></thead><tbody>${[1, 2, 3].map((g) => `<tr><td>${g}그룹</td><td class="num">${cnt((r) => +r.grp === g)}</td></tr>`).join('')}<tr><td>그룹 없음</td><td class="num">${cnt((r) => !r.grp)}</td></tr></tbody></table></div></div></section>
+    <section class="card"><div class="row between"><h2>참여 학생 명단 (${roster.length}명)</h2><div class="row"><button class="btn btn-sm" data-act="roAdd">학생 추가</button><button class="btn btn-sm btn-primary" data-act="roSave">저장</button></div></div>
+      <div class="field"><label for="rosterQ">이름·학과·업체·반 검색</label><input id="rosterQ" value="${esc(state.rosterQ || '')}"></div>
+      <datalist id="deptList">${depts.map((d) => `<option value="${esc(d)}">`).join('')}</datalist>
+      <div class="table-scroll"><table class="data edit-table"><thead><tr><th>반</th><th>번호</th><th>이름</th><th>학과</th><th>채용연계</th><th>희망 분야</th><th>연계 업체</th><th>그룹</th><th>가입</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="10" class="muted">학생이 없습니다.</td></tr>'}</tbody></table></div>
+      <div class="row" style="justify-content:flex-end">${unsaved(state.rosterDirty)}<button class="btn btn-primary" data-act="roSave">저장</button></div></section>
+    ${missingStudents.length ? `<section class="card"><h2>가입했지만 명단에 없는 학생 (${missingStudents.length}명)</h2><p class="small muted">프로그램에 참여하는 학생이면 추가한 뒤 저장하세요.</p><div class="chips">${missingStudents.map((s) => `<span class="chip">${classLabel(s)} ${esc(s.name)}<button data-act="roAddStudent" data-v="${s.id}" aria-label="${esc(s.name)} 명단에 추가">＋</button></span>`).join('')}</div></section>` : ''}
+    ${deptCard()}`);
+}
 function viewProgram() {
   const ev = state.progEvents || [];
   const roster = state.progRoster || [];
-  const joined = (r) => state.students.some((s) => s.class_no === r.class_no && s.number === r.number);
-  const opt = (list, v) => list.map((x) => `<option ${String(x) === String(v) ? 'selected' : ''}>${x}</option>`).join('');
-  const evRows = ev.map((e, i) => `<tr><td><input type="date" data-ev="${i}" data-k="day" value="${esc(e.day)}" aria-label="날짜"></td><td><input data-ev="${i}" data-k="period" value="${esc(e.period)}" aria-label="시간" style="width:7.5em"></td>
-    <td><select data-ev="${i}" data-k="grp" aria-label="그룹">${opt(['전체', '1', '2', '3'], e.grp)}</select></td><td><input data-ev="${i}" data-k="dept" value="${esc(e.dept)}" aria-label="대상 학과" style="width:8em"></td><td><input data-ev="${i}" data-k="company" value="${esc(e.company)}" aria-label="대상 업체" style="width:7em"></td>
-    <td><input data-ev="${i}" data-k="title" value="${esc(e.title)}" aria-label="내용"></td><td><input data-ev="${i}" data-k="place" value="${esc(e.place)}" aria-label="장소" style="width:8em"></td><td><button class="icon-btn" data-act="evDel" data-v="${i}" title="삭제" aria-label="일정 삭제">🗑️</button></td></tr>`).join('');
-  const count = (k, v) => roster.filter((r) => String(r[k]) === String(v)).length;
-  const rRows = roster.map((r) => `<tr><td class="nowrap">${r.class_no}반 ${r.number}번</td><td class="strong">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.hire_type)}</td><td>${r.grp ? `${r.grp}그룹` : '-'}</td><td>${esc(r.field || '-')}</td><td>${esc(r.company || '-')}</td><td>${joined(r) ? '<span class="badge ok">가입</span>' : '<span class="badge off">미가입</span>'}</td></tr>`).join('');
-  return shell(`<div class="head"><div><button class="btn-link" data-act="back">← 학생 목록</button><h1>취업역량강화 프로그램 관리</h1><p class="muted small">학생 홈 화면에 그룹, 채용연계, 일정이 보입니다. 학생은 반·번호로 명단과 연결됩니다.</p></div></div>
-    <section class="card"><h2>엑셀 파일로 관리</h2><p class="small muted">새 학년도에는 양식을 내려받아 <b>명단</b>과 <b>일정</b> 시트를 채운 뒤 올리세요. 올린 시트의 내용으로 지금 명단이나 일정이 모두 바뀝니다. 명단에 연락처 칸이 있어도 저장하지 않습니다.</p>
-      <div class="row"><button class="btn" data-act="progDownload">지금 내용 엑셀로 내려받기</button><label class="btn btn-primary" for="progUpload">엑셀 파일 올리기</label><input id="progUpload" type="file" accept=".xlsx,.xls,.csv" hidden></div></section>
-    <section class="card"><h2>달력 미리보기</h2>${calendarHTML(ev.filter((e) => e.day && e.title), (e) => `${e.grp === '전체' ? '' : `[${e.grp}그룹] `}${e.title}`)}</section>
-    <section class="card"><div class="row between"><h2>일정</h2><button class="btn btn-sm" data-act="evAdd">일정 추가</button></div>
-      <p class="small muted">그룹을 고르면 그 그룹 학생에게만, 학과나 업체를 적으면 그 학과·업체 학생에게만 보입니다. 비워 두면 모두에게 보입니다.</p>
-      <div class="table-scroll"><table class="data prog-table"><thead><tr><th>날짜</th><th>시간</th><th>그룹</th><th>학과</th><th>업체</th><th>내용</th><th>장소</th><th></th></tr></thead><tbody>${evRows || '<tr><td colspan="8" class="muted">일정이 없습니다.</td></tr>'}</tbody></table></div>
-      <div><button class="btn btn-primary" data-act="evSave">일정 저장</button></div></section>
-    <section class="card"><h2>참여 학생 명단 (${roster.length}명)</h2>
-      <p class="small muted">${[1, 2, 3].map((g) => `${g}그룹 ${count('grp', g)}명`).join(' · ')} / ${HIRE_TYPES.map((t) => `${t} ${count('hire_type', t)}명`).join(' · ')}. 연락처는 저장하지 않습니다.</p>
-      <div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>이름</th><th>학과</th><th>채용연계</th><th>그룹</th><th>분야</th><th>업체</th><th>가입</th></tr></thead><tbody>${rRows || '<tr><td colspan="8" class="muted">명단이 없습니다.</td></tr>'}</tbody></table></div>
-</section>`);
+  const reach = (e) => roster.filter((r) => eventFor(r, r.dept)(e)).length;
+  const who = (e) => {
+    const ds = deptList(e.dept);
+    const chips = [ds.length ? ds.map((d) => `<span class="tag">${esc(d)}만</span>`).join('') : '<span class="tag all">모든 학과</span>',
+      e.grp === '전체' ? '' : `<span class="tag">${e.grp}그룹만</span>`, e.company ? `<span class="tag">${esc(e.company)}만</span>` : ''].join('');
+    return `${chips}<span class="small muted"> ${reach(e)}명</span>`;
+  };
+  const rows = ev.map((e, i) => `<tr><td class="nowrap">${kindTag(e)}</td><td class="nowrap strong">${dayLabel(e.day)}</td><td class="nowrap">${esc(e.period || '종일')}</td><td><b>${esc(e.title)}</b>${e.place ? `<div class="small muted">${esc(e.place)}</div>` : ''}</td><td>${who(e)}</td>
+    <td class="nowrap"><button class="icon-btn" data-act="evEdit" data-v="${i}" title="고치기" aria-label="${esc(e.title)} 고치기">✏️</button><button class="icon-btn" data-act="evDel" data-v="${i}" title="삭제" aria-label="${esc(e.title)} 삭제">🗑️</button></td></tr>`).join('');
+  return shell(`<div class="head"><div><button class="btn-link" data-act="back">← 학생 목록</button><h1>일정 관리</h1><p class="muted small">학생 홈 화면 달력에 나오는 취업역량강화 프로그램 일정입니다. 고치면 바로 저장됩니다.</p></div><button class="btn btn-primary" data-act="evEdit" data-v="new">＋ 일정 추가</button></div>
+    <section class="card"><h2>달력</h2>${calendarHTML(ev, (e) => `${e.grp === '전체' ? '' : `[${e.grp}그룹] `}${e.title}`)}</section>
+    <section class="card"><h2>일정 목록 (${ev.length}개)</h2><p class="small muted"><b>그룹·학과</b> 칸에서 누구에게 보이는 일정인지 확인하세요. "모든 학과"는 참여 학생 모두에게 보입니다.</p>
+      <div class="table-scroll"><table class="data"><thead><tr><th>구분</th><th>날짜</th><th>시간</th><th>내용·장소</th><th>그룹·학과 (보이는 학생)</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="muted">일정이 없습니다. 위의 일정 추가를 눌러 주세요.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><h2>엑셀 파일로 관리</h2><p class="small muted">일정을 내려받아 고친 뒤 올리면 일정 전체가 파일 내용으로 바뀝니다. 구분 칸에는 학사일정 또는 취업부 프로그램을 적고, 학과 칸은 비워 두면 모든 학과, 여러 학과는 쉼표로 나눠 적습니다. 처음 받은 원본 양식(일자, 교시, 그룹, 담당, 해당학과, 내용, 인원, 장소)도 올릴 수 있습니다.</p>
+      <div class="row"><button class="btn" data-act="evDownload">일정 엑셀로 내려받기</button><label class="btn" for="evUpload">엑셀 파일 올리기</label><input id="evUpload" type="file" accept=".xlsx,.xls,.csv" hidden></div></section>`);
+}
+// 대상 학과 목록: 학과 관리에 있는 학과 + 명단에 있는 학과
+const allDepts = () => [...new Set([...(state.depts || []).map((d) => d.name), ...(state.progRoster || []).map((r) => r.dept), ...(state.students || []).map((s) => s.dept)].filter(Boolean))].sort((p, q) => p.localeCompare(q, 'ko'));
+function eventModal(i) {
+  const e = i === 'new' ? { kind: '취업', day: todayIso(), period: '', grp: '전체', dept: '', company: '', title: '', place: '' } : state.progEvents[+i];
+  const per = parsePeriod(e.period);
+  const cls = (sel) => `<option value="">끝까지</option>${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${String(n) === String(sel) ? 'selected' : ''}>${n}</option>`).join('')}`;
+  const picked = deptList(e.dept);
+  const isOn = (d) => picked.some((p) => d.includes(p));
+  const companies = [...new Set((state.progRoster || []).map((r) => r.company).filter(Boolean))];
+  const radio = (name, v, label, on) => `<label class="choice"><input type="radio" name="${name}" value="${esc(v)}" ${on ? 'checked' : ''}><span>${label}</span></label>`;
+  $('#modal').innerHTML = `<div class="modal-back"><form class="modal-box ev-form" id="evForm" data-i="${i}"><h2 style="font-size:1.125rem">${i === 'new' ? '일정 추가' : '일정 고치기'}</h2>
+    <fieldset class="pick-box"><legend>1. 구분</legend><div class="kind-pick">${Object.entries(KIND).map(([k, l]) => `<label class="kind-opt k-${k === '학사' ? 'school' : 'job'}"><input type="radio" name="kind" value="${k}" ${kindOf(e) === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></fieldset>
+    <fieldset class="pick-box"><legend>2. 날짜와 시간</legend><div class="field"><label for="ev-day">날짜</label><input id="ev-day" name="day" type="date" value="${esc(e.day)}" required></div>
+      <div class="choice-row">${radio('pmode', 'day', '종일', per.mode === 'day')}${radio('pmode', 'class', '교시', per.mode === 'class')}${radio('pmode', 'time', '시각', per.mode === 'time')}${per.mode === 'etc' ? radio('pmode', 'etc', '직접 적기', true) : ''}</div>
+      <div class="pmode" data-pm="class" ${per.mode === 'class' ? '' : 'hidden'}><select name="pfrom" aria-label="시작 교시">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<option ${String(n) === String(per.from || 5) ? 'selected' : ''}>${n}</option>`).join('')}</select><span>교시부터</span><select name="pto" aria-label="끝 교시">${cls(per.mode === 'class' ? per.to : 7)}</select><span>교시까지</span></div>
+      <div class="pmode" data-pm="time" ${per.mode === 'time' ? '' : 'hidden'}><input type="time" name="ptime" value="${esc(per.t || '14:00')}" aria-label="시작 시각"><span>부터</span></div>
+      ${per.mode === 'etc' ? `<div class="pmode" data-pm="etc"><input name="ptext" value="${esc(per.text)}" aria-label="시간 직접 적기"></div>` : ''}</fieldset>
+    <fieldset class="pick-box"><legend>3. 내용</legend>
+    <div class="field"><label for="ev-title">내용</label><input id="ev-title" name="title" value="${esc(e.title)}" required></div>
+    <div class="field"><label for="ev-place">장소</label><input id="ev-place" name="place" value="${esc(e.place)}"></div></fieldset>
+    <fieldset class="pick-box"><legend>4. 대상 그룹</legend><div class="choice-row">${radio('grp', '전체', '모든 그룹', e.grp === '전체')}${['1', '2', '3'].map((g) => radio('grp', g, `${g}그룹만`, e.grp === g)).join('')}</div></fieldset>
+    <fieldset class="pick-box"><legend>5. 대상 학과</legend>${radio('deptMode', 'all', '<b>모든 학과</b>', !picked.length)}${radio('deptMode', 'some', '<b>선택한 학과만</b>', !!picked.length)}
+      <div class="dept-checks" ${picked.length ? '' : 'hidden'}>${allDepts().map((d) => `<label class="check"><input type="checkbox" name="dept" value="${esc(d)}" ${isOn(d) ? 'checked' : ''}><span>${esc(d)}</span></label>`).join('')}</div></fieldset>
+    ${companies.length || e.company ? `<fieldset class="pick-box"><legend>6. 대상 업체 (필요할 때만)</legend><select name="company" aria-label="대상 업체"><option value="">모든 업체</option>${[...new Set([...companies, e.company].filter(Boolean))].map((c) => `<option ${c === e.company ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><p class="hint">업체 면접처럼 특정 업체 학생만 볼 일정일 때 고르세요.</p></fieldset>` : ''}
+    <div class="notice" id="evReach"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-act="closeModal">취소</button><button class="btn btn-primary" type="submit">저장</button></div></form></div>`;
+  updateReach();
+}
+function readEventForm() {
+  const f = $('#evForm');
+  const v = new FormData(f);
+  const some = v.get('deptMode') === 'some';
+  const pmode = v.get('pmode') || 'day';
+  return { kind: v.get('kind') || '취업', pmode, day: v.get('day'), period: buildPeriod({ mode: pmode, from: v.get('pfrom'), to: v.get('pto'), t: v.get('ptime'), text: v.get('ptext') }), title: String(v.get('title') || '').trim(), place: String(v.get('place') || '').trim(), grp: v.get('grp') || '전체', dept: some ? v.getAll('dept').join(',') : '', company: v.get('company') || '', some };
+}
+// 고르는 대로 몇 명에게 보이는지 바로 알려 준다
+function updateReach() {
+  const box = $('#evReach'); if (!box) return;
+  const e = readEventForm();
+  $('#evForm .dept-checks').hidden = !e.some;
+  document.querySelectorAll('#evForm .pmode').forEach((el) => { el.hidden = el.dataset.pm !== e.pmode; });
+  if (e.some && !e.dept) { box.className = 'notice warn'; box.textContent = '학과를 하나 이상 골라 주세요.'; return; }
+  const roster = state.progRoster || [];
+  const n = roster.filter((r) => eventFor(r, r.dept)(e)).length;
+  box.className = 'notice ok';
+  box.innerHTML = `이 일정은 <b>${esc(eventTarget(e) === '전체' ? '참여 학생 모두' : `${eventTarget(e)} 학생`)}</b>에게 보입니다. 지금 명단 기준 <b>${n}명</b>입니다.`;
+}
+async function saveEvents(list, done) {
+  const rows = list.map((e) => ({ kind: kindOf(e), day: e.day, period: e.period || '', grp: e.grp || '전체', dept: e.dept || '', company: e.company || '', title: e.title, place: e.place || '' }));
+  const { error } = await sb.rpc('resume_replace_events', { rows });
+  if (error) { toast('일정을 저장하지 못했습니다. 지금 내용은 그대로입니다.'); return false; }
+  await loadProgramAdmin(); render(); toast(done);
+  return true;
 }
 async function loadProgramAdmin() {
   const [r, e] = await Promise.all([sb.from('resume_program_roster').select().order('class_no').order('number'), sb.from('resume_program_events').select().order('day').order('id')]);
   if (r.error || e.error) { toast('프로그램 정보를 불러오지 못했습니다.'); return false; }
-  state.progRoster = r.data; state.progEvents = e.data.map((x) => ({ ...x })); state.progDeleted = [];
+  state.progRoster = r.data.map((x) => ({ ...x })); state.progEvents = e.data.map((x) => ({ ...x }));
+  state.rosterDirty = false; state.evDirty = false;
   return true;
 }
+const leaveEdit = () => !state.rosterDirty || confirm('저장하지 않은 변경이 있습니다. 저장하지 않고 나갈까요?');
 /* 엑셀 시트 읽기: 제목 줄에서 칸 이름을 찾아 맞춘다 */
 function sheetRows(wb, names) {
   const name = wb.SheetNames.find((n) => names.some((x) => n.includes(x)));
@@ -963,42 +1073,49 @@ function parseEventRows(rows) {
   const get = (r, ...keys) => { const k = h.col(...keys); return k < 0 ? '' : String(r[k] ?? '').trim(); };
   return rows.slice(h.at + 1).map((r) => {
     const g = get(r, '그룹').replace(/그룹/, '');
-    return { day: toIsoDay(r[h.col('날짜', '일자')]), period: get(r, '시간', '교시'), grp: ['1', '2', '3'].includes(g) ? g : '전체', dept: get(r, '학과', '해당학과').replace(/^(전체|-)$/, ''), company: get(r, '업체'), title: get(r, '내용'), place: get(r, '장소') };
+    return { kind: /학사/.test(get(r, '구분')) ? '학사' : '취업', day: toIsoDay(r[h.col('날짜', '일자')]), period: get(r, '시간', '교시'), grp: ['1', '2', '3'].includes(g) ? g : '전체', dept: get(r, '학과', '해당학과').replace(/^(전체|-)$/, ''), company: get(r, '업체'), title: get(r, '내용'), place: get(r, '장소') };
   }).filter((e) => e.day && e.title);
 }
-function downloadProgram() {
-  const roster = (state.progRoster || []).map((r) => ({ 반: r.class_no, 번호: r.number, 이름: r.name, 학과: r.dept, 채용연계: r.hire_type, 분야: r.field, 업체: r.company, 그룹: r.grp ?? '' }));
-  const events = (state.progEvents || []).map((e) => ({ 날짜: e.day, 시간: e.period, 그룹: e.grp, 학과: e.dept, 업체: e.company, 내용: e.title, 장소: e.place }));
+function saveSheet(name, sheetName, rows, head, widths) {
   const wb = XLSX.utils.book_new();
-  const sheet = (rows, head, widths) => { const ws = XLSX.utils.json_to_sheet(rows, { header: head }); ws['!cols'] = widths.map((wch) => ({ wch })); return ws; };
-  XLSX.utils.book_append_sheet(wb, sheet(roster, ['반', '번호', '이름', '학과', '채용연계', '분야', '업체', '그룹'], [5, 5, 10, 16, 10, 12, 14, 6]), '명단');
-  XLSX.utils.book_append_sheet(wb, sheet(events, ['날짜', '시간', '그룹', '학과', '업체', '내용', '장소'], [12, 14, 6, 14, 12, 36, 14]), '일정');
-  XLSX.writeFile(wb, `취업역량강화프로그램_${todayIso()}.xlsx`);
+  const ws = XLSX.utils.json_to_sheet(rows, { header: head });
+  ws['!cols'] = widths.map((wch) => ({ wch }));
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, name);
 }
-async function uploadProgram(file) {
-  let wb;
-  try { wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }); } catch (_e) { toast('파일을 읽지 못했습니다. 엑셀 파일인지 확인해 주세요.'); return; }
-  const first = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
-  const rRows = sheetRows(wb, ['명단']) || first;
-  const eRows = sheetRows(wb, ['일정']) || first;
-  const roster = parseRosterRows(rRows);
-  const events = parseEventRows(eRows);
-  if (!roster?.length && !events?.length) { toast('명단이나 일정을 찾지 못했습니다. 양식을 내려받아 제목 줄을 확인해 주세요.'); return; }
-  const dup = roster ? roster.length - new Set(roster.map((r) => `${r.class_no}-${r.number}`)).size : 0;
-  if (dup) { toast(`명단에 반·번호가 같은 학생이 ${dup}명 있습니다. 파일을 확인해 주세요.`); return; }
-  const parts = [roster?.length ? `명단 ${roster.length}명 (지금 ${state.progRoster.length}명)` : '', events?.length ? `일정 ${events.length}개 (지금 ${state.progEvents.filter((e) => e.id).length}개)` : ''].filter(Boolean);
-  if (!confirm(`파일 내용으로 바꿀까요?\n${parts.join('\n')}\n지금 내용은 지워집니다.`)) return;
-  if (roster?.length) {
-    const del = await sb.from('resume_program_roster').delete().gte('class_no', 0);
-    const ins = del.error ? del : await sb.from('resume_program_roster').insert(roster);
-    if (ins.error) { toast('명단을 저장하지 못했습니다. 다시 올려 주세요.'); return; }
-  }
-  if (events?.length) {
-    const del = await sb.from('resume_program_events').delete().gte('id', 0);
-    const ins = del.error ? del : await sb.from('resume_program_events').insert(events);
-    if (ins.error) { toast('일정을 저장하지 못했습니다. 다시 올려 주세요.'); return; }
-  }
-  await loadProgramAdmin(); state.calMonth = ''; render(); toast(`${parts.join(', ')}로 바꿨습니다.`);
+function downloadRoster() {
+  saveSheet(`취업역량강화_명단_${todayIso()}.xlsx`, '명단', (state.progRoster || []).map((r) => ({ 반: r.class_no, 번호: r.number, 이름: r.name, 학과: r.dept, 채용연계: r.hire_type, 분야: r.field, 업체: r.company, 그룹: r.grp ?? '' })),
+    ['반', '번호', '이름', '학과', '채용연계', '분야', '업체', '그룹'], [5, 5, 10, 16, 10, 12, 14, 6]);
+}
+function downloadEvents() {
+  saveSheet(`취업역량강화_일정_${todayIso()}.xlsx`, '일정', (state.progEvents || []).map((e) => ({ 구분: KIND[kindOf(e)], 날짜: e.day, 시간: e.period, 그룹: e.grp, 학과: e.dept, 업체: e.company, 내용: e.title, 장소: e.place })),
+    ['구분', '날짜', '시간', '그룹', '학과', '업체', '내용', '장소'], [14, 12, 14, 6, 14, 12, 36, 14]);
+}
+async function readBook(file) {
+  try { return XLSX.read(await file.arrayBuffer(), { type: 'array' }); } catch (_e) { toast('파일을 읽지 못했습니다. 엑셀 파일인지 확인해 주세요.'); return null; }
+}
+const firstSheet = (wb) => XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+async function uploadRoster(file) {
+  const wb = await readBook(file); if (!wb) return;
+  const rows = parseRosterRows(sheetRows(wb, ['명단']) || firstSheet(wb));
+  if (!rows?.length) { toast('명단을 찾지 못했습니다. 제목 줄에 반, 이름, 채용연계 칸이 있는지 확인해 주세요.'); return; }
+  if (state.rosterDirty && !confirm('저장하지 않은 변경이 있습니다. 파일 내용으로 바꿀까요?')) return;
+  state.progRoster = rows; state.rosterDirty = true; render();
+  toast(`파일에서 ${rows.length}명을 불러왔습니다. 확인한 뒤 저장을 눌러 주세요.`);
+}
+async function uploadEvents(file) {
+  const wb = await readBook(file); if (!wb) return;
+  const rows = parseEventRows(sheetRows(wb, ['일정']) || firstSheet(wb));
+  if (!rows?.length) { toast('일정을 찾지 못했습니다. 제목 줄에 날짜(또는 일자)와 내용 칸이 있는지 확인해 주세요.'); return; }
+  if (!confirm(`파일의 일정 ${rows.length}개로 바꿀까요? 지금 일정 ${state.progEvents.length}개는 지워집니다.`)) return;
+  state.calMonth = '';
+  await saveEvents(rows, `일정 ${rows.length}개로 바꿨습니다.`);
+}
+function deptCard() {
+  const rows = (state.depts || []).map((d) => `<div class="dept-row"><input data-dept="${d.id}" value="${esc(d.name)}" maxlength="40" aria-label="학과 이름"><button class="btn btn-sm btn-danger" data-act="delDept" data-v="${d.id}">삭제</button></div>`).join('');
+  return `<section class="card" id="deptCard"><h2>학과 관리</h2><p class="small muted">여기에 입력한 학과가 학생 회원가입 화면과 일정 대상 학과 선택 목록에 나옵니다.</p>
+    <form id="deptForm" class="phone-row"><div class="field"><label for="newDept">새 학과 이름</label><input id="newDept" maxlength="40" required></div><button class="btn btn-primary" type="submit">추가</button></form>
+    <div class="rows">${rows || '<p class="muted">아직 등록한 학과가 없습니다. 학과를 추가하기 전까지 학생은 학과를 직접 입력합니다.</p>'}</div><p class="hint">이름을 고치면 자동 저장됩니다. 학과를 삭제하거나 이름을 바꿔도 이미 가입한 학생과 명단의 학과는 그대로입니다.</p></section>`;
 }
 function viewDepts() {
   const rows = (state.depts || []).map((d) => `<div class="dept-row"><input data-dept="${d.id}" value="${esc(d.name)}" maxlength="40" aria-label="학과 이름"><button class="btn btn-sm btn-danger" data-act="delDept" data-v="${d.id}">삭제</button></div>`).join('');
@@ -1038,7 +1155,8 @@ function viewTeacher() {
   const classes = [...new Map(rows.map((x) => [classKey(x.s), x.s.grade ? `${x.s.grade}학년 ${x.s.class_no}반` : '반 미지정'])).entries()];
   const deptOf = (x) => x.doc?.major || x.s.dept || '';
   const depts = [...new Set(rows.map(deptOf).filter(Boolean))].sort((p, q) => p.localeCompare(q, 'ko'));
-  const inClass = (x) => (!state.classFilter || classKey(x.s) === state.classFilter) && (!state.deptFilter || deptOf(x) === state.deptFilter);
+  const PROG = { '': () => true, g1: (x) => x.prog?.grp === 1, g2: (x) => x.prog?.grp === 2, g3: (x) => x.prog?.grp === 3, h1: (x) => x.prog?.hire_type === '순수취업', h2: (x) => x.prog?.hire_type === '일학습', h3: (x) => x.prog?.hire_type === '계약학과', none: (x) => !x.prog };
+  const inClass = (x) => (!state.classFilter || classKey(x.s) === state.classFilter) && (!state.deptFilter || deptOf(x) === state.deptFilter) && (PROG[state.progFilter || ''] || PROG[''])(x);
   // 위 단계 카드: 전체, 가입 승인 대기, 1~3차 첨삭 요청, 완성(추가 자기소개서 진행 중 포함)
   const STAGE = { all: () => true, pending: (x) => x.key === 'pending', r1: (x) => x.key === 'review' && x.round === 1, r2: (x) => x.key === 'review' && x.round === 2, r3: (x) => x.key === 'review' && x.round >= 3, none: (x) => x.key === 'none', w1: (x) => x.key === 'writing' && x.round === 1, w2: (x) => x.key === 'writing' && x.round === 2, w3: (x) => x.key === 'writing' && x.round >= 3, done: (x) => ['done', 'coReview', 'coWriting'].includes(x.key) };
   const match = (x) => inClass(x) && (STAGE[state.filter] || STAGE.all)(x);
@@ -1047,22 +1165,31 @@ function viewTeacher() {
   const canPick = list.filter(pickable);
   const allOn = canPick.length && canPick.every((x) => state.picked.has(x.s.id));
   const stat = (k, n, label) => `<button class="stat" style="text-align:left;cursor:pointer;${state.filter === k ? 'border-color:var(--brand)' : ''}" data-act="filter" data-v="${k}"><b>${n}</b><span>${label}</span></button>`;
-  const item = (x) => `<tr><td class="pick">${pickable(x) ? `<input type="checkbox" data-pick="${x.s.id}" ${state.picked.has(x.s.id) ? 'checked' : ''} aria-label="${esc(x.s.name)} 선택">` : ''}</td><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}" title="${classLabel(x.s)} · 눌러서 반·번호 수정">${esc(x.s.login_id)}</button>` : `<span title="${classLabel(x.s)}">${esc(x.s.login_id)}</span>`}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
+  const item = (x) => `<tr><td class="pick">${pickable(x) ? `<input type="checkbox" data-pick="${x.s.id}" ${state.picked.has(x.s.id) ? 'checked' : ''} aria-label="${esc(x.s.name)} 선택">` : ''}</td><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}" title="${classLabel(x.s)} · 눌러서 반·번호 수정">${esc(x.s.login_id)}</button>` : `<span title="${classLabel(x.s)}">${esc(x.s.login_id)}</span>`}</td><td><span class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</span><div class="small muted">${esc(x.doc?.major || x.s.dept)}</div></td><td class="prog-cell">${x.prog ? `<b>${x.prog.grp ? `${x.prog.grp}그룹` : '그룹 없음'}</b> · ${esc(x.prog.hire_type || '-')}${x.prog.field || x.prog.company ? `<div class="small muted">${esc([x.prog.field, x.prog.company].filter(Boolean).join(' · '))}</div>` : ''}` : '<span class="muted small">명단 없음</span>'}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap" title="${when(x.updated)}">${shortWhen(x.updated)}</td><td class="nowrap" title="${x.approved ? when(x.approved) : ''}">${x.approved ? shortWhen(x.approved) : '-'}</td>
     <td class="nowrap icon-cell">${x.s.status === 'approved' ? `${x.doc ? `<a class="icon-btn" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener" title="${x.approved ? '완성본 프린트' : '프린트'}" aria-label="${esc(x.s.name)} ${x.approved ? '완성본 프린트' : '프린트'}">🖨️</a>` : ''}` : `<button class="icon-btn" data-act="approve" data-v="${x.s.id}" title="가입 승인" aria-label="${esc(x.s.name)} 가입 승인">✅</button>${x.key === 'pending' ? `<button class="icon-btn" data-act="reject" data-v="${x.s.id}" title="가입 거절" aria-label="${esc(x.s.name)} 가입 거절">❌</button>` : ''}`}${isOwner() ? `<button class="icon-btn" data-act="delRow" data-v="${x.s.id}" title="삭제" aria-label="${esc(x.s.name)} 삭제">🗑️</button>` : ''}</td></tr>`;
-  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openProgram">프로그램 관리</button><button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
+  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm btn-primary" data-act="openRoster">학생 관리</button><button class="btn btn-sm" data-act="openProgram">일정 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${[['all', '전체 학생'], ['pending', '가입 승인 대기'], ['r1', '1차 첨삭 요청'], ['r2', '2차 첨삭 요청'], ['r3', '3차 첨삭 요청'], ['done', '완성']].map(([k, label]) => stat(k, rows.filter((x) => inClass(x) && STAGE[k](x)).length, label)).join('')}</div>
+    <section class="card"><div class="row between"><h2>취업역량강화 프로그램 일정</h2>${isOwner() ? '<div class="row"><button class="btn btn-sm" data-act="openRoster">학생 관리</button><button class="btn btn-sm btn-primary" data-act="openProgram">일정 관리</button></div>' : ''}</div>
+      <p class="small muted">${(state.progRoster || []).length}명 참여 · ${[1, 2, 3].map((g) => `${g}그룹 ${(state.progRoster || []).filter((r) => r.grp === g).length}명`).join(' · ')}${isOwner() ? '' : ' · 일정과 명단은 최고 관리자가 고칩니다.'}</p>
+      ${(state.progEvents || []).length ? calendarHTML(state.progEvents, (e) => `${e.grp === '전체' ? '' : `[${e.grp}그룹] `}${e.title}`) : '<p class="muted">등록된 일정이 없습니다.</p>'}</section>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
-    <section class="card"><div class="form-grid filters"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="stageFilter">상태</label><select id="stageFilter">${[['all', '전체'], ['pending', '가입 승인 대기'], ['none', '시작 전'], ['w1', '1차 작성 중'], ['r1', '1차 첨삭 요청'], ['w2', '2차 작성 중'], ['r2', '2차 첨삭 요청'], ['w3', '3차 작성 중'], ['r3', '3차 첨삭 요청'], ['done', '완성']].map(([k, l]) => `<option value="${k}" ${state.filter === k ? 'selected' : ''}>${l} (${rows.filter((x) => inClass(x) && STAGE[k](x)).length})</option>`).join('')}</select></div><div class="field"><label for="deptFilter">학과</label><select id="deptFilter"><option value="">전체</option>${depts.map((d) => `<option ${state.deptFilter === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>${bulkBar()}<div class="table-scroll"><table class="data"><thead><tr><th class="pick">${canPick.length ? `<input type="checkbox" id="pickAll" ${allOn ? 'checked' : ''} aria-label="보이는 학생 모두 선택">` : ''}</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><div class="form-grid filters"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="stageFilter">상태</label><select id="stageFilter">${[['all', '전체'], ['pending', '가입 승인 대기'], ['none', '시작 전'], ['w1', '1차 작성 중'], ['r1', '1차 첨삭 요청'], ['w2', '2차 작성 중'], ['r2', '2차 첨삭 요청'], ['w3', '3차 작성 중'], ['r3', '3차 첨삭 요청'], ['done', '완성']].map(([k, l]) => `<option value="${k}" ${state.filter === k ? 'selected' : ''}>${l} (${rows.filter((x) => inClass(x) && STAGE[k](x)).length})</option>`).join('')}</select></div><div class="field"><label for="progFilter">그룹·채용연계</label><select id="progFilter">${[['', '전체'], ['g1', '1그룹'], ['g2', '2그룹'], ['g3', '3그룹'], ['h1', '순수취업'], ['h2', '일학습'], ['h3', '계약학과'], ['none', '명단에 없음']].map(([k, l]) => `<option value="${k}" ${(state.progFilter || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div><div class="field"><label for="deptFilter">학과</label><select id="deptFilter"><option value="">전체</option>${depts.map((d) => `<option ${state.deptFilter === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>${bulkBar()}<div class="table-scroll"><table class="data"><thead><tr><th class="pick">${canPick.length ? `<input type="checkbox" id="pickAll" ${allOn ? 'checked' : ''} aria-label="보이는 학생 모두 선택">` : ''}</th><th>학번</th><th>이름·학과</th><th>그룹·채용연계</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
     ${isOwner() ? schoolCard() : ''}${myInfoCard()}${isOwner() ? ownerCard() : ''}<section class="card"><div class="row between"><h2>텔레그램 알림</h2><span id="tgState">${tgLabel()}</span></div>
       <div id="tgBox">${tgBoxHTML()}</div></section>`);
 }
 
+// 처음 고칠 때만 '저장하지 않은 변경' 표시를 그린다 (입력 중에는 다시 그리지 않는다)
+function markDirty(key) {
+  if (state[key]) return;
+  state[key] = true;
+  document.querySelector('.head')?.insertAdjacentHTML('beforeend', unsaved(true));
+}
 function render() {
-  const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher, depts: viewDepts, program: viewProgram }[state.view]();
+  const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher, depts: viewDepts, program: viewProgram, roster: viewRoster }[state.view]();
   const y = window.scrollY;
   $('#app').innerHTML = view;
-  $('#app').className = state.view === 'teacher' ? 'wide' : '';
+  $('#app').className = ['teacher', 'roster', 'program'].includes(state.view) ? 'wide' : '';
   if (state.view === 'teacher') drawShareQr();
   document.body.classList.toggle('no-print', !(state.view === 'editor' && canOutput()));
   if (state.view === 'editor') { showSave(state.saveState); if (state.tab === 'preview' || state.tab === 'output') renderPreview(); else { applyDateLimits(); applyLocks(); } }
@@ -1189,7 +1316,7 @@ const ACT = {
     await openResume(state.owner);
     toast(`${undo.label}했습니다. 피드백을 고친 뒤 다시 전송할 수 있습니다.`);
   },
-  back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
+  back: async () => { if (!leaveEdit()) return; if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
   refresh: () => loadTeacher(),
   excel: () => downloadExcel(),
   aiAll: () => downloadAi(true),
@@ -1200,23 +1327,29 @@ const ACT = {
   bulkClear: () => { state.picked.clear(); render(); },
   aiOne: async () => { if (state.dirty) await save(); downloadAi(false); },
   openProgram: async () => { if (await loadProgramAdmin()) { state.view = 'program'; state.calMonth = ''; render(); window.scrollTo(0, 0); } },
-  evAdd: () => { state.progEvents.push({ day: todayIso(), period: '', grp: '전체', dept: '', company: '', title: '', place: '' }); render(); },
-  evDel: (i) => { const [e] = state.progEvents.splice(+i, 1); if (e?.id) state.progDeleted.push(e.id); render(); },
-  evSave: async () => {
-    const list = state.progEvents;
-    if (list.some((e) => !e.day || !e.title.trim())) { toast('날짜와 내용을 모두 입력해 주세요.'); return; }
-    const pick = (e) => ({ day: e.day, period: e.period.trim(), grp: e.grp, dept: e.dept.trim(), company: e.company.trim(), title: e.title.trim(), place: e.place.trim() });
-    const jobs = [
-      ...state.progDeleted.map((id) => sb.from('resume_program_events').delete().eq('id', id)),
-      ...list.filter((e) => e.id).map((e) => sb.from('resume_program_events').update(pick(e)).eq('id', e.id)),
-    ];
-    const fresh = list.filter((e) => !e.id).map(pick);
-    if (fresh.length) jobs.push(sb.from('resume_program_events').insert(fresh));
-    const res = await Promise.all(jobs);
-    if (res.some((r) => r.error)) { toast('일부 일정을 저장하지 못했습니다. 다시 시도해 주세요.'); return; }
-    await loadProgramAdmin(); render(); toast('일정을 저장했습니다.');
+  openRoster: async () => { await loadDepts(); if (await loadProgramAdmin()) { state.view = 'roster'; state.rosterQ = ''; render(); window.scrollTo(0, 0); } },
+  evEdit: (i) => eventModal(i),
+  evDel: async (i) => {
+    const e = state.progEvents[+i];
+    if (!confirm(`${dayLabel(e.day)} ${e.title} 일정을 삭제할까요?`)) return;
+    await saveEvents(state.progEvents.filter((_, k) => k !== +i), '일정을 삭제했습니다.');
   },
-  progDownload: () => downloadProgram(),
+  evDownload: () => downloadEvents(),
+  rosterDownload: () => downloadRoster(),
+  roAdd: () => { state.progRoster.push({ class_no: '', number: '', name: '', dept: '', hire_type: '', field: '', company: '', grp: null }); state.rosterDirty = true; state.rosterQ = ''; render(); document.querySelector(`[data-ro="${state.progRoster.length - 1}"][data-k="class_no"]`)?.focus(); },
+  roAddStudent: (id) => { const s = state.students.find((x) => x.id === id); state.progRoster.push({ class_no: s.class_no, number: s.number, name: s.name, dept: s.dept || '', hire_type: '', field: '', company: '', grp: null }); state.rosterDirty = true; render(); toast(`${s.name} 학생을 표에 넣었습니다. 채용연계와 그룹을 고르고 저장해 주세요.`); },
+  roDel: (i) => { const r = state.progRoster[+i]; if (!confirm(`${r.name || '이 학생'}을(를) 명단에서 뺄까요? 저장을 눌러야 반영됩니다.`)) return; state.progRoster.splice(+i, 1); state.rosterDirty = true; render(); },
+  roSave: async () => {
+    const list = state.progRoster.map((r) => ({ class_no: +r.class_no, number: +r.number, name: String(r.name || '').trim(), dept: String(r.dept || '').trim(), hire_type: r.hire_type || '', field: String(r.field || '').trim(), company: String(r.company || '').trim(), grp: r.grp ? +r.grp : null }));
+    const bad = list.findIndex((r) => !(r.class_no > 0 && r.number > 0 && r.name));
+    if (bad >= 0) { toast(`${bad + 1}번째 줄의 반, 번호, 이름을 확인해 주세요.`); return; }
+    const keys = list.map((r) => `${r.class_no}-${r.number}`);
+    const dup = keys.find((k, i) => keys.indexOf(k) !== i);
+    if (dup) { const [c, n] = dup.split('-'); toast(`${c}반 ${n}번이 두 번 있습니다. 확인해 주세요.`); return; }
+    const { error } = await sb.rpc('resume_replace_roster', { rows: list });
+    if (error) { toast('명단을 저장하지 못했습니다. 지금 내용은 그대로입니다.'); return; }
+    await loadProgramAdmin(); render(); toast(`명단 ${list.length}명을 저장했습니다.`);
+  },
   calMove: (v) => { state.calMonth = v; render(); },
   openDepts: async () => { await loadDepts(); state.view = 'depts'; render(); window.scrollTo(0, 0); },
   delDept: async (id) => {
@@ -1331,7 +1464,8 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.ev !== undefined) { state.progEvents[+t.dataset.ev][t.dataset.k] = t.value; return; }
+  if (t.dataset.ro !== undefined) { state.progRoster[+t.dataset.ro][t.dataset.k] = t.value; markDirty('rosterDirty'); return; }
+  if (t.id === 'rosterQ') { state.rosterQ = t.value; const pos = t.selectionStart; render(); const s = $('#rosterQ'); s.focus(); s.setSelectionRange(pos, pos); return; }
   if (t.id === 'search') { state.search = t.value; const pos = t.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); return; }
   if (t.dataset.co || t.dataset.coCompany !== undefined) {
     const c = state.companies.find((x) => x.id === state.companyId);
@@ -1359,8 +1493,10 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
+  if (t.closest('#evForm')) { updateReach(); return; }
   if (t.id === 'photoInput' && t.files[0]) uploadPhoto(t.files[0]);
-  if (t.id === 'progUpload' && t.files[0]) { uploadProgram(t.files[0]); t.value = ''; return; }
+  if (t.id === 'rosterUpload' && t.files[0]) { uploadRoster(t.files[0]); t.value = ''; return; }
+  if (t.id === 'evUpload' && t.files[0]) { uploadEvents(t.files[0]); t.value = ''; return; }
   if (['f-grade', 'f-class', 'f-number'].includes(t.id) && $('#autoId')) {
     const g = $('#f-grade').value; const c = $('#f-class').value; const n = $('#f-number').value;
     $('#autoId').innerHTML = g && c && n ? `내 학번은 <b>${makeStudentId(g, c, n)}</b>입니다. 로그인할 때 이 번호를 사용하세요.` : '학년, 반, 번호를 고르면 학번이 만들어집니다.';
@@ -1373,7 +1509,8 @@ document.addEventListener('change', (e) => {
   if (t.id === 'classFilter') { state.classFilter = t.value; render(); return; }
   if (t.id === 'stageFilter') { state.filter = t.value; render(); return; }
   if (t.id === 'deptFilter') { state.deptFilter = t.value; render(); return; }
-  if (t.dataset.ev !== undefined) { state.progEvents[+t.dataset.ev][t.dataset.k] = t.value; return; }
+  if (t.id === 'progFilter') { state.progFilter = t.value; render(); return; }
+  if (t.dataset.ro !== undefined) { state.progRoster[+t.dataset.ro][t.dataset.k] = t.value; markDirty('rosterDirty'); return; }
   if (t.dataset.pick) { if (t.checked) state.picked.add(t.dataset.pick); else state.picked.delete(t.dataset.pick); render(); return; }
   if (t.id === 'pickAll') { (state.shownRows || []).filter(pickable).forEach((x) => (t.checked ? state.picked.add(x.s.id) : state.picked.delete(x.s.id))); render(); return; }
   if (t.dataset.perm) {
@@ -1424,6 +1561,16 @@ document.addEventListener('submit', async (e) => {
     const { error } = await sb.from('resume_departments').insert({ name, sort_order: (state.depts?.length || 0) + 1 });
     if (error) { toast('추가하지 못했습니다. 같은 이름이 있는지 확인해 주세요.'); return; }
     await loadDepts(); render();
+  }
+  if (f.id === 'evForm') {
+    const e = readEventForm();
+    if (!e.day || !e.title) { toast('날짜와 내용을 입력해 주세요.'); return; }
+    if (e.some && !e.dept) { toast('대상 학과를 하나 이상 골라 주세요.'); return; }
+    delete e.some; delete e.pmode;
+    const i = f.dataset.i;
+    const list = i === 'new' ? [...state.progEvents, e] : state.progEvents.map((x, k) => (k === +i ? e : x));
+    if (await saveEvents(list, i === 'new' ? '일정을 추가했습니다.' : '일정을 고쳤습니다.')) { $('#modal').innerHTML = ''; state.calMonth = e.day.slice(0, 7); render(); }
+    return;
   }
   if (f.id === 'classForm') {
     const v = Object.fromEntries(new FormData(f));

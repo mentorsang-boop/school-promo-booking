@@ -257,7 +257,7 @@ a.co-item { color: inherit; text-decoration: none; }
 .icon-cell { white-space: nowrap; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-right: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 1.05rem; line-height: 1; text-decoration: none; cursor: pointer; }
 .icon-btn:hover { border-color: var(--brand); }
-.form-grid.filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.form-grid.filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 @media (max-width: 900px) { .form-grid.filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .form-grid.filters { grid-template-columns: minmax(0, 1fr); } }
 /* 학생 목록 표를 한 화면에 맞춘다 */
@@ -301,3 +301,34 @@ table.data .pct { min-width: 72px; }
 .cal-ev.key { background: #fff1a8; }
 @media (max-width: 640px) { .cal-cell { min-height: 64px; padding: 2px; } .cal-ev { font-size: .6875rem; padding: 2px 3px; } .cal-ev small { display: none; } }
 .prog-table input, .prog-table select { min-height: 36px; padding: 4px 8px; }
+.prog-cell { white-space: nowrap; }
+.edit-table input, .edit-table select { min-height: 36px; padding: 4px 8px; }
+.edit-table input[type=number] { -moz-appearance: textfield; }
+.sum-wrap { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 720px) { .sum-wrap { grid-template-columns: minmax(0, 1fr); } }
+/* 일정 고치기 창 */
+.ev-form { width: min(560px, 100%); }
+.pick-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 8px; }
+.pick-box legend { font-weight: 700; padding: 0 6px; }
+.choice { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.choice input { width: 20px; height: 20px; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.dept-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 8px 0 0 28px; }
+.tag { display: inline-block; margin: 0 4px 4px 0; padding: 2px 8px; border-radius: 999px; background: var(--warn-50); color: var(--warn); font-size: .8125rem; font-weight: 600; }
+.tag.all { background: var(--ok-50); color: var(--ok); }
+/* 구분 태그 */
+.kind { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.kind.k-job { background: var(--brand-50); color: var(--brand); }
+.kind.k-school { background: #e9f3ec; color: #1f7a4a; }
+.cal-ev.k-school { background: #e9f3ec; }
+.cal-ev.k-job { background: var(--brand-50); }
+.cal-ev.key { background: #fff1a8; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-bottom: 8px; }
+.cal-legend .cal-ev { display: inline-block; font-weight: 600; }
+.kind-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kind-opt { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border: 2px solid var(--line); border-radius: 10px; cursor: pointer; font-weight: 700; }
+.kind-opt input { width: 18px; height: 18px; }
+.kind-opt.k-job:has(input:checked) { border-color: var(--brand); background: var(--brand-50); color: var(--brand); }
+.kind-opt.k-school:has(input:checked) { border-color: #1f7a4a; background: #e9f3ec; color: #1f7a4a; }
+.pmode { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pmode select, .pmode input[type=time] { width: auto; min-width: 5em; }
