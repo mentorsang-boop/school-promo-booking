@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.23';
+const VERSION = '1.24';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -440,12 +440,20 @@ function versionButtons() {
   const btn = (v, label, on) => `<button class="btn btn-sm ${currentView() === v ? 'btn-primary' : ''}" data-act="version" data-v="${v ?? ''}" ${on ? '' : 'disabled'}>${label}</button>`;
   return `<div class="row">${[1, 2, 3].map((n) => btn(n, `${n}차`, has(n))).join('')}${approved ? btn(null, '완성본', true) : ''}</div>`;
 }
+const undoTarget = (r) => {
+  if (!isTeacher() || r.status !== 'draft') return null;
+  const round = r.round || 1;
+  if (state.versions?.some((v) => v.round === round)) return { round, label: '반려 취소', ask: '반려를 취소' };
+  return round >= 2 ? { round: round - 1, label: '피드백 전송 취소', ask: '피드백 전송을 취소' } : null;
+};
 function reviewButtons(r) {
   const round = r.round || 1;
   if (r.status === 'approved') return canApprove() ? '<button class="btn" data-act="review" data-v="reopen">최종 승인 취소</button>' : '';
   const send = canFeedback() ? `<button class="btn" data-act="review" data-v="next">피드백 전송 (${round + 1}차로)</button>` : '';
   const back = isTeacher() && r.status === 'submitted' ? '<button class="btn" data-act="review" data-v="return">반려</button>' : '';
-  return `<div class="row">${back}${send}${canApprove() ? '<button class="btn btn-primary" data-act="review" data-v="approve">최종 승인</button>' : ''}</div>`;
+  const undo = undoTarget(r);
+  const cancel = undo ? `<button class="btn" data-act="undoSend">${undo.label}</button>` : '';
+  return `<div class="row">${cancel}${back}${send}${canApprove() ? '<button class="btn btn-primary" data-act="review" data-v="approve">최종 승인</button>' : ''}</div>`;
 }
 const canFeedback = () => isTeacher() && state.resume?.status === 'submitted' && (state.resume.round || 1) < 3;
 // 학생은 제출 후 잠기고, 승인 후에는 회사명과 작성일만 고칠 수 있다
@@ -998,6 +1006,18 @@ const ACT = {
     if (error || !data) { toast('처리하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
     state.resume = data; state.versionView = null; if (state.tab === 'output' && !isTeacher()) state.tab = 'edit'; render();
     toast({ next: '피드백을 전송했습니다.', approve: '최종 승인했습니다.', reopen: '최종 승인을 취소했습니다.', return: '반려했습니다.' }[kind]);
+  },
+  undoSend: async () => {
+    const r = state.resume;
+    const undo = undoTarget(r);
+    if (!undo) return;
+    if (state.dirty && !(await save())) return;
+    if (!confirm(`${undo.ask}할까요? 학생의 이력서가 ${undo.round}차 첨삭 요청 상태로 돌아가고, 학생이 아직 답하지 않은 ${undo.round}차 피드백은 다시 전송 전으로 바뀝니다.\n학생이 그사이 고친 내용은 그대로 남습니다.`)) return;
+    const { data, error } = await sb.from('resumes').update({ status: 'submitted', round: undo.round }).eq('user_id', r.user_id).eq('version', r.version).select().maybeSingle();
+    if (error || !data || data.status !== 'submitted') { toast('취소하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
+    await sb.from('resume_feedbacks').update({ sent_at: null }).eq('student_id', r.user_id).eq('round', undo.round).is('response', null).not('sent_at', 'is', null);
+    await openResume(state.owner);
+    toast(`${undo.label}했습니다. 피드백을 고친 뒤 다시 전송할 수 있습니다.`);
   },
   back: async () => { if (state.dirty) await save(); state.search = ''; await loadTeacher(); },
   refresh: () => loadTeacher(),
