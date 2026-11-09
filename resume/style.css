@@ -166,8 +166,8 @@ h1, h2, h3 { line-height: 1.3; letter-spacing: -.02em; }
 .tg-steps code { background: var(--brand-50); color: var(--brand-900); padding: 1px 5px; border-radius: 4px; font-size: .8125rem; overflow-wrap: anywhere; }
 .version { text-align: center; font-size: .75rem; color: var(--ink-3); }
 
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; }
 .stat b { display: block; font-size: 1.5rem; color: var(--brand-900); line-height: 1.2; font-variant-numeric: tabular-nums; }
 .stat span { font-size: .75rem; color: var(--ink-2); }
