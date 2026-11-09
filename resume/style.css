@@ -254,3 +254,14 @@ a.co-item { color: inherit; text-decoration: none; }
 .data .pick input { width: 18px; height: 18px; cursor: pointer; }
 .bulk-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin: 12px 0 8px; padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: 10px; }
 .bulk-bar.on { border-style: solid; border-color: var(--brand); background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.icon-cell { white-space: nowrap; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-right: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 1.05rem; line-height: 1; text-decoration: none; cursor: pointer; }
+.icon-btn:hover { border-color: var(--brand); }
+.form-grid.filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .form-grid.filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .form-grid.filters { grid-template-columns: minmax(0, 1fr); } }
+/* 학생 목록 표를 한 화면에 맞춘다 */
+.table-scroll table.data th, .table-scroll table.data td { padding: 8px 6px; }
+.table-scroll table.data th { white-space: normal; word-break: keep-all; }
+table.data .pct { min-width: 72px; }
+.table-scroll table.data .badge { white-space: normal; word-break: keep-all; }
