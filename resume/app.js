@@ -2,7 +2,7 @@ const SUPABASE_URL = 'https://prsldqlwyohsqmzzuiji.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rk7hTt2bKuzbFRm0J8ozJw_qx4xQdqf';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'resume-auth' } });
 
-const VERSION = '1.24';
+const VERSION = '1.25';
 const INTRO_MAX = 600;
 const INTRO = [['growth', '성장 과정'], ['personality', '성격의 장·단점'], ['school', '학창시절 및 사회경험'], ['motivation', '지원동기 및 입사 후 포부']];
 const SECTIONS = ['전체', '기본 정보', '학력', '자격 및 면허', '수상 경력', '활동 경력', '경력 사항', '동아리·봉사', ...INTRO.map((x) => x[1]), '제출 정보'];
@@ -310,6 +310,65 @@ const spacedPeriod = (p) => String(p || '').replace('~', ' ~ ');
 const periodRow = (key, i, a, aLabel, b, bLabel) => `<div class="entry-4">${input(`${key}.${i}.from`, '시작', DATE)}${input(`${key}.${i}.to`, '종료', DATE)}${input(`${key}.${i}.${a}`, aLabel, { cls: 'wide' })}${input(`${key}.${i}.${b}`, bLabel, { cls: 'wide' })}</div>`;
 
 /* 편집 화면 (학생 본인, 교사의 학생 지도 공용) */
+/* 취업역량강화 프로그램: 내 그룹·채용연계·일정 */
+const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+const dayLabel = (iso) => { const d = new Date(`${iso}T00:00:00`); return `${d.getMonth() + 1}.${d.getDate()}(${WEEK[d.getDay()]})`; };
+const todayIso = () => new Date().toLocaleDateString('sv');
+async function loadProgram(owner) {
+  const [me, ev] = await Promise.all([
+    owner.class_no && owner.number ? sb.from('resume_program_roster').select().eq('class_no', owner.class_no).eq('number', owner.number).maybeSingle() : Promise.resolve({ data: null }),
+    sb.from('resume_program_events').select().order('day').order('id'),
+  ]);
+  state.program = { me: me.data || null, events: ev.data || [] };
+}
+const eventFor = (me, dept) => (e) => (e.grp === '전체' || String(me?.grp || '') === e.grp)
+  && (!e.dept || (me?.dept || dept || '').includes(e.dept))
+  && (!e.company || (me?.company || '') === e.company);
+const eventTarget = (e) => [e.grp === '전체' ? '' : `${e.grp}그룹`, e.dept, e.company].filter(Boolean).join(' · ') || '전체';
+/* 달력: 일요일부터 시작하는 한 달 칸에 일정을 넣는다 */
+function calendarHTML(events, label = (e) => e.title) {
+  const today = todayIso();
+  const months = [...new Set(events.map((e) => e.day.slice(0, 7)))].sort();
+  if (!state.calMonth) state.calMonth = months.find((m) => m >= today.slice(0, 7)) || months[months.length - 1] || today.slice(0, 7);
+  const [y, m] = state.calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const start = new Date(y, m - 1, 1 - first.getDay());
+  const byDay = {};
+  events.forEach((e) => { (byDay[e.day] ||= []).push(e); });
+  const cells = [];
+  for (let k = 0; k < 42; k++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + k);
+    if (k >= 35 && d.getMonth() !== m - 1) break;
+    const iso = d.toLocaleDateString('sv');
+    const list = byDay[iso] || [];
+    cells.push(`<div class="cal-cell${d.getMonth() !== m - 1 ? ' out' : ''}${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() === 0 ? ' sun' : d.getDay() === 6 ? ' sat' : ''}"><span class="cal-d">${d.getDate()}</span>${list.map((e) => `<div class="cal-ev${/이력서 제출/.test(e.title) ? ' key' : ''}" title="${esc(`${e.title}${e.period ? ` · ${e.period}` : ''}${e.place ? ` · ${e.place}` : ''}`)}"><b>${esc(label(e))}</b>${e.period ? `<small>${esc(e.period)}</small>` : ''}</div>`).join('')}</div>`);
+  }
+  const step = (n) => { const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  return `<div class="cal"><div class="cal-head"><button class="btn btn-sm" data-act="calMove" data-v="${step(-1)}" aria-label="이전 달">‹</button><b>${y}년 ${m}월</b><button class="btn btn-sm" data-act="calMove" data-v="${step(1)}" aria-label="다음 달">›</button></div>
+    <div class="cal-grid">${WEEK.map((w, k) => `<div class="cal-w${k === 0 ? ' sun' : k === 6 ? ' sat' : ''}">${w}</div>`).join('')}${cells.join('')}</div></div>`;
+}
+function viewHome() {
+  const p = state.program || { me: null, events: [] };
+  const me = p.me;
+  const r = state.resume;
+  const list = p.events.filter(eventFor(me, state.owner.dept));
+  const today = todayIso();
+  const upcoming = list.filter((e) => e.day >= today);
+  const due = upcoming.find((e) => /이력서 제출/.test(e.title));
+  const round = r.round || 1;
+  const step = r.status === 'approved' ? '완성 (최종 승인)' : r.status === 'submitted' ? `${round}차 첨삭 요청 중` : `${round}차 작성 중`;
+  const tile = (label, v, cls = '') => `<div class="home-info ${cls}"><span>${label}</span><b>${esc(v || '-')}</b></div>`;
+  const status = `<section class="card status-card"><div class="row between"><h2>나의 상태</h2><span class="small muted">${classLabel(state.owner)} · ${esc(state.owner.name)}</span></div>
+    ${me ? '' : '<div class="notice warn">취업역량강화 프로그램 명단에서 찾지 못했습니다. 반과 번호가 맞는지 확인하고, 프로그램에 참여한다면 선생님께 말씀해 주세요.</div>'}
+    <div class="home-grid">${tile('그룹', me?.grp ? `${me.grp}그룹` : '', 'hl')}${tile('채용연계', me?.hire_type, 'hl')}${tile('희망 분야', me?.field)}${tile('연계 업체', me?.company)}</div>
+    <div class="home-grid two">${tile('이력서 진행', `${step} · 진행률 ${progress(state.doc, !!state.photoUrl)}%`)}${tile('다음 이력서 제출일', due ? `${dayLabel(due.day)}${due.period ? ` ${due.period}` : ''}` : '', due ? 'warn' : '')}</div></section>`;
+  const todo = upcoming.slice(0, 5).map((e) => `<li${e.day === today ? ' class="today"' : ''}><b>${dayLabel(e.day)}</b><span>${esc(e.title)}${e.period ? ` · ${esc(e.period)}` : ''}${e.place ? ` · ${esc(e.place)}` : ''}</span></li>`).join('');
+  return `${status}
+    <section class="card"><h2>나의 일정</h2>${list.length ? calendarHTML(list) : '<p class="muted">등록된 일정이 없습니다.</p>'}
+      ${todo ? `<h3 class="sub-h">다가오는 일정</h3><ul class="todo">${todo}</ul>` : ''}
+      <p class="hint">일정은 바뀔 수 있습니다. 노란 칸은 이력서 제출일입니다.</p></section>
+    <div class="tab-next"><button class="btn btn-primary" data-act="tab" data-v="edit">확인했어요. 이력서 작성하기 →</button></div>`;
+}
 function viewEditor() {
   const { doc: d, resume: r, owner } = state;
   const missingList = missing(d, !!state.photoUrl);
@@ -319,10 +378,11 @@ function viewEditor() {
   const badge = r.status === 'approved' ? '<span class="badge ok">완성 (승인됨)</span>' : r.status === 'submitted' ? `<span class="badge warn">${round}차 첨삭 요청됨</span>` : `<span class="badge">${round}차 작성 중</span>`;
   const head = `<div class="head"><div>${teacher ? '<button class="btn-link" data-act="back">← 학생 목록</button>' : ''}<h1>${esc(owner.name)} 이력서</h1><p class="muted small">${classLabel(owner)} · ${esc(owner.login_id)}${owner.dept ? ' · ' + esc(owner.dept) : ''} · 진행률 ${pct}%</p></div>${badge}</div>
     <div class="progress" aria-hidden="true"><i style="width:${pct}%"></i></div>`;
-  const tabs = `<div class="tabs" role="tablist">${[['edit', '기본정보'], ['intro', '자기소개서'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` <span class="tab-count">${state.feedbacks.length}</span>` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`]] : []), ...(r.status === 'approved' || teacher ? [['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const tabs = `<div class="tabs" role="tablist">${[['home', '홈'], ['edit', '기본정보'], ['intro', '자기소개서'], ...(studentDone() ? [] : [['review', `첨삭${state.feedbacks.length ? ` <span class="tab-count">${state.feedbacks.length}</span>` : ''}`], ['preview', '미리보기']]), ...(r.status === 'approved' ? [['companies', `추가 자기소개서${state.companies?.length ? ` ${state.companies.length}` : ''}`]] : []), ...(r.status === 'approved' || teacher ? [['output', '출력']] : [])].map(([v, l]) => `<button role="tab" aria-selected="${state.tab === v}" data-act="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
   if (studentDone() && (state.tab === 'review' || state.tab === 'preview')) state.tab = 'edit';
   let body = '';
-  if (state.tab === 'review') body = viewReview();
+  if (state.tab === 'home') body = viewHome();
+  else if (state.tab === 'review') body = viewReview();
   else if (state.tab === 'output') body = viewOutput();
   else if (state.tab === 'companies') body = viewCompanies();
   else if (state.tab === 'edit' || state.tab === 'intro') {
@@ -573,7 +633,7 @@ async function openResume(owner) {
   state.versions = versions || [];
   state.companyId = null; state.outputCompany = '';
   await loadCompanies();
-  await Promise.all([loadPhoto(), loadFeedbacks()]);
+  await Promise.all([loadPhoto(), loadFeedbacks(), loadProgram(owner).then(() => { state.calMonth = ''; }).catch(() => { state.program = null; })]);
   state.view = 'editor';
   if (isTeacher() && r.status === 'submitted') state.tab = 'review';
   const asked = isTeacher() && r.status === 'approved' && state.companies.find((c) => c.status === 'submitted');
@@ -830,6 +890,116 @@ function drawShareQr() {
   const box = $('#shareQr');
   if (box && window.QRCode) new QRCode(box, { text: studentUrl(), width: 132, height: 132 });
 }
+const HIRE_TYPES = ['순수취업', '일학습', '계약학과'];
+function viewProgram() {
+  const ev = state.progEvents || [];
+  const roster = state.progRoster || [];
+  const joined = (r) => state.students.some((s) => s.class_no === r.class_no && s.number === r.number);
+  const opt = (list, v) => list.map((x) => `<option ${String(x) === String(v) ? 'selected' : ''}>${x}</option>`).join('');
+  const evRows = ev.map((e, i) => `<tr><td><input type="date" data-ev="${i}" data-k="day" value="${esc(e.day)}" aria-label="날짜"></td><td><input data-ev="${i}" data-k="period" value="${esc(e.period)}" aria-label="시간" style="width:7.5em"></td>
+    <td><select data-ev="${i}" data-k="grp" aria-label="그룹">${opt(['전체', '1', '2', '3'], e.grp)}</select></td><td><input data-ev="${i}" data-k="dept" value="${esc(e.dept)}" aria-label="대상 학과" style="width:8em"></td><td><input data-ev="${i}" data-k="company" value="${esc(e.company)}" aria-label="대상 업체" style="width:7em"></td>
+    <td><input data-ev="${i}" data-k="title" value="${esc(e.title)}" aria-label="내용"></td><td><input data-ev="${i}" data-k="place" value="${esc(e.place)}" aria-label="장소" style="width:8em"></td><td><button class="icon-btn" data-act="evDel" data-v="${i}" title="삭제" aria-label="일정 삭제">🗑️</button></td></tr>`).join('');
+  const count = (k, v) => roster.filter((r) => String(r[k]) === String(v)).length;
+  const rRows = roster.map((r) => `<tr><td class="nowrap">${r.class_no}반 ${r.number}번</td><td class="strong">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.hire_type)}</td><td>${r.grp ? `${r.grp}그룹` : '-'}</td><td>${esc(r.field || '-')}</td><td>${esc(r.company || '-')}</td><td>${joined(r) ? '<span class="badge ok">가입</span>' : '<span class="badge off">미가입</span>'}</td></tr>`).join('');
+  return shell(`<div class="head"><div><button class="btn-link" data-act="back">← 학생 목록</button><h1>취업역량강화 프로그램 관리</h1><p class="muted small">학생 홈 화면에 그룹, 채용연계, 일정이 보입니다. 학생은 반·번호로 명단과 연결됩니다.</p></div></div>
+    <section class="card"><h2>엑셀 파일로 관리</h2><p class="small muted">새 학년도에는 양식을 내려받아 <b>명단</b>과 <b>일정</b> 시트를 채운 뒤 올리세요. 올린 시트의 내용으로 지금 명단이나 일정이 모두 바뀝니다. 명단에 연락처 칸이 있어도 저장하지 않습니다.</p>
+      <div class="row"><button class="btn" data-act="progDownload">지금 내용 엑셀로 내려받기</button><label class="btn btn-primary" for="progUpload">엑셀 파일 올리기</label><input id="progUpload" type="file" accept=".xlsx,.xls,.csv" hidden></div></section>
+    <section class="card"><h2>달력 미리보기</h2>${calendarHTML(ev.filter((e) => e.day && e.title), (e) => `${e.grp === '전체' ? '' : `[${e.grp}그룹] `}${e.title}`)}</section>
+    <section class="card"><div class="row between"><h2>일정</h2><button class="btn btn-sm" data-act="evAdd">일정 추가</button></div>
+      <p class="small muted">그룹을 고르면 그 그룹 학생에게만, 학과나 업체를 적으면 그 학과·업체 학생에게만 보입니다. 비워 두면 모두에게 보입니다.</p>
+      <div class="table-scroll"><table class="data prog-table"><thead><tr><th>날짜</th><th>시간</th><th>그룹</th><th>학과</th><th>업체</th><th>내용</th><th>장소</th><th></th></tr></thead><tbody>${evRows || '<tr><td colspan="8" class="muted">일정이 없습니다.</td></tr>'}</tbody></table></div>
+      <div><button class="btn btn-primary" data-act="evSave">일정 저장</button></div></section>
+    <section class="card"><h2>참여 학생 명단 (${roster.length}명)</h2>
+      <p class="small muted">${[1, 2, 3].map((g) => `${g}그룹 ${count('grp', g)}명`).join(' · ')} / ${HIRE_TYPES.map((t) => `${t} ${count('hire_type', t)}명`).join(' · ')}. 연락처는 저장하지 않습니다.</p>
+      <div class="table-scroll"><table class="data"><thead><tr><th>반·번호</th><th>이름</th><th>학과</th><th>채용연계</th><th>그룹</th><th>분야</th><th>업체</th><th>가입</th></tr></thead><tbody>${rRows || '<tr><td colspan="8" class="muted">명단이 없습니다.</td></tr>'}</tbody></table></div>
+</section>`);
+}
+async function loadProgramAdmin() {
+  const [r, e] = await Promise.all([sb.from('resume_program_roster').select().order('class_no').order('number'), sb.from('resume_program_events').select().order('day').order('id')]);
+  if (r.error || e.error) { toast('프로그램 정보를 불러오지 못했습니다.'); return false; }
+  state.progRoster = r.data; state.progEvents = e.data.map((x) => ({ ...x })); state.progDeleted = [];
+  return true;
+}
+/* 엑셀 시트 읽기: 제목 줄에서 칸 이름을 찾아 맞춘다 */
+function sheetRows(wb, names) {
+  const name = wb.SheetNames.find((n) => names.some((x) => n.includes(x)));
+  return name ? XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' }) : null;
+}
+function headerIndex(rows, must) {
+  const has = (r, m) => [].concat(m).some((x) => r.some((c) => String(c).trim() === x));
+  const at = rows.findIndex((r) => must.every((m) => has(r, m)));
+  if (at < 0) return null;
+  const head = rows[at].map((c) => String(c).trim());
+  const anchor = head.findIndex((x) => [].concat(must[0]).includes(x));
+  // 제목도 내용도 모두 빈 칸을 표 사이 경계로 보고, 기준 칸이 든 표 안에서만 칸을 찾는다
+  const gap = (i) => !head[i] && rows.slice(at + 1).every((r) => !String(r[i] ?? '').trim());
+  let lo = anchor; while (lo > 0 && !gap(lo - 1)) lo--;
+  let hi = anchor; while (hi < head.length - 1 && !gap(hi + 1)) hi++;
+  const col = (...keys) => head.reduce((best, x, i) => (i >= lo && i <= hi && keys.includes(x) && (best < 0 || Math.abs(i - anchor) < Math.abs(best - anchor)) ? i : best), -1);
+  return { at, col };
+}
+function toIsoDay(v) {
+  if (typeof v === 'number') { const d = XLSX.SSF.parse_date_code(v); return d ? `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}` : ''; }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = s.match(/^(\d{1,2})\s*[./월]\s*(\d{1,2})/);
+  return m ? `${new Date().getFullYear()}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : '';
+}
+function parseRosterRows(rows) {
+  const h = headerIndex(rows, ['반', '이름', '채용연계']);
+  if (!h) return null;
+  const cls = h.col('반');
+  let num = h.col('번호', '번');
+  if (num < 0) num = cls + 1; // 원본 양식은 번호 칸 제목이 비어 있다
+  const blank = (v) => { const t = String(v ?? '').trim(); return t === '0' ? '' : t; };
+  const get = (r, ...keys) => { const k = h.col(...keys); return k < 0 ? '' : blank(r[k]); };
+  return rows.slice(h.at + 1).filter((r) => /^\d+$/.test(String(r[cls]).trim()) && /^\d+$/.test(String(r[num]).trim()) && get(r, '이름'))
+    .map((r) => ({ class_no: +r[cls], number: +r[num], name: get(r, '이름'), dept: get(r, '학과'), hire_type: get(r, '채용연계'), field: get(r, '분야', '희망 분야'), company: get(r, '업체', '연계 업체'), grp: /^\d+$/.test(get(r, '그룹')) ? +get(r, '그룹') : null }));
+}
+function parseEventRows(rows) {
+  const h = headerIndex(rows, [['날짜', '일자'], '내용']);
+  if (!h) return null;
+  const get = (r, ...keys) => { const k = h.col(...keys); return k < 0 ? '' : String(r[k] ?? '').trim(); };
+  return rows.slice(h.at + 1).map((r) => {
+    const g = get(r, '그룹').replace(/그룹/, '');
+    return { day: toIsoDay(r[h.col('날짜', '일자')]), period: get(r, '시간', '교시'), grp: ['1', '2', '3'].includes(g) ? g : '전체', dept: get(r, '학과', '해당학과').replace(/^(전체|-)$/, ''), company: get(r, '업체'), title: get(r, '내용'), place: get(r, '장소') };
+  }).filter((e) => e.day && e.title);
+}
+function downloadProgram() {
+  const roster = (state.progRoster || []).map((r) => ({ 반: r.class_no, 번호: r.number, 이름: r.name, 학과: r.dept, 채용연계: r.hire_type, 분야: r.field, 업체: r.company, 그룹: r.grp ?? '' }));
+  const events = (state.progEvents || []).map((e) => ({ 날짜: e.day, 시간: e.period, 그룹: e.grp, 학과: e.dept, 업체: e.company, 내용: e.title, 장소: e.place }));
+  const wb = XLSX.utils.book_new();
+  const sheet = (rows, head, widths) => { const ws = XLSX.utils.json_to_sheet(rows, { header: head }); ws['!cols'] = widths.map((wch) => ({ wch })); return ws; };
+  XLSX.utils.book_append_sheet(wb, sheet(roster, ['반', '번호', '이름', '학과', '채용연계', '분야', '업체', '그룹'], [5, 5, 10, 16, 10, 12, 14, 6]), '명단');
+  XLSX.utils.book_append_sheet(wb, sheet(events, ['날짜', '시간', '그룹', '학과', '업체', '내용', '장소'], [12, 14, 6, 14, 12, 36, 14]), '일정');
+  XLSX.writeFile(wb, `취업역량강화프로그램_${todayIso()}.xlsx`);
+}
+async function uploadProgram(file) {
+  let wb;
+  try { wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }); } catch (_e) { toast('파일을 읽지 못했습니다. 엑셀 파일인지 확인해 주세요.'); return; }
+  const first = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+  const rRows = sheetRows(wb, ['명단']) || first;
+  const eRows = sheetRows(wb, ['일정']) || first;
+  const roster = parseRosterRows(rRows);
+  const events = parseEventRows(eRows);
+  if (!roster?.length && !events?.length) { toast('명단이나 일정을 찾지 못했습니다. 양식을 내려받아 제목 줄을 확인해 주세요.'); return; }
+  const dup = roster ? roster.length - new Set(roster.map((r) => `${r.class_no}-${r.number}`)).size : 0;
+  if (dup) { toast(`명단에 반·번호가 같은 학생이 ${dup}명 있습니다. 파일을 확인해 주세요.`); return; }
+  const parts = [roster?.length ? `명단 ${roster.length}명 (지금 ${state.progRoster.length}명)` : '', events?.length ? `일정 ${events.length}개 (지금 ${state.progEvents.filter((e) => e.id).length}개)` : ''].filter(Boolean);
+  if (!confirm(`파일 내용으로 바꿀까요?\n${parts.join('\n')}\n지금 내용은 지워집니다.`)) return;
+  if (roster?.length) {
+    const del = await sb.from('resume_program_roster').delete().gte('class_no', 0);
+    const ins = del.error ? del : await sb.from('resume_program_roster').insert(roster);
+    if (ins.error) { toast('명단을 저장하지 못했습니다. 다시 올려 주세요.'); return; }
+  }
+  if (events?.length) {
+    const del = await sb.from('resume_program_events').delete().gte('id', 0);
+    const ins = del.error ? del : await sb.from('resume_program_events').insert(events);
+    if (ins.error) { toast('일정을 저장하지 못했습니다. 다시 올려 주세요.'); return; }
+  }
+  await loadProgramAdmin(); state.calMonth = ''; render(); toast(`${parts.join(', ')}로 바꿨습니다.`);
+}
 function viewDepts() {
   const rows = (state.depts || []).map((d) => `<div class="dept-row"><input data-dept="${d.id}" value="${esc(d.name)}" maxlength="40" aria-label="학과 이름"><button class="btn btn-sm btn-danger" data-act="delDept" data-v="${d.id}">삭제</button></div>`).join('');
   return shell(`<div class="head"><div><button class="btn-link" data-act="back">← 학생 목록</button><h1>학과 관리</h1><p class="muted small">여기에 입력한 학과가 학생 회원가입 화면에 선택 목록으로 나옵니다.</p></div></div>
@@ -880,7 +1050,7 @@ function viewTeacher() {
   const item = (x) => `<tr><td class="pick">${pickable(x) ? `<input type="checkbox" data-pick="${x.s.id}" ${state.picked.has(x.s.id) ? 'checked' : ''} aria-label="${esc(x.s.name)} 선택">` : ''}</td><td class="nowrap">${isOwner() ? `<button class="btn-link" data-act="editClass" data-v="${x.s.id}" title="${classLabel(x.s)} · 눌러서 반·번호 수정">${esc(x.s.login_id)}</button>` : `<span title="${classLabel(x.s)}">${esc(x.s.login_id)}</span>`}</td><td class="strong">${x.s.status === 'approved' ? `<a href="admin.html?student=${x.s.id}" target="_blank" rel="noopener">${esc(x.s.name)}</a>` : esc(x.s.name)}</td><td>${esc(x.doc?.major || x.s.dept)}</td><td><span class="badge ${BADGE[x.key]}">${statusText(x)}</span></td>
     <td class="pct"><div class="progress"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></td><td class="num">${x.doc ? `${x.lack.length}개` : '-'}</td><td class="num">${x.fb ? `<span class="badge ${x.fbDone === x.fb ? 'ok' : 'warn'}">${x.fbDone}/${x.fb} 응답</span>` : '-'}</td><td class="nowrap">${companyCell(x.s.id)}</td><td class="nowrap" title="${when(x.updated)}">${shortWhen(x.updated)}</td><td class="nowrap" title="${x.approved ? when(x.approved) : ''}">${x.approved ? shortWhen(x.approved) : '-'}</td>
     <td class="nowrap icon-cell">${x.s.status === 'approved' ? `${x.doc ? `<a class="icon-btn" href="admin.html?resume=${x.s.id}" target="_blank" rel="noopener" title="${x.approved ? '완성본 프린트' : '프린트'}" aria-label="${esc(x.s.name)} ${x.approved ? '완성본 프린트' : '프린트'}">🖨️</a>` : ''}` : `<button class="icon-btn" data-act="approve" data-v="${x.s.id}" title="가입 승인" aria-label="${esc(x.s.name)} 가입 승인">✅</button>${x.key === 'pending' ? `<button class="icon-btn" data-act="reject" data-v="${x.s.id}" title="가입 거절" aria-label="${esc(x.s.name)} 가입 거절">❌</button>` : ''}`}${isOwner() ? `<button class="icon-btn" data-act="delRow" data-v="${x.s.id}" title="삭제" aria-label="${esc(x.s.name)} 삭제">🗑️</button>` : ''}</td></tr>`;
-  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
+  return shell(`<div class="head"><div><h1>학생 이력서 관리</h1><p class="muted small">${esc(state.profile.name)} 선생님${isOwner() ? ' · 최고 관리자' : ''}</p></div><div class="row">${isOwner() ? '<button class="btn btn-sm" data-act="openProgram">프로그램 관리</button><button class="btn btn-sm" data-act="openDepts">학과 관리</button>' : ''}<button class="btn btn-sm" data-act="excel">엑셀 다운로드</button>${canAi() ? '<button class="btn btn-sm" data-act="aiAll" title="지금 목록에 보이는 학생만 내려받습니다">AI 피드백용 다운로드</button>' : ''}<button class="btn btn-sm" data-act="refresh">새로고침</button></div></div>
     <div class="stats">${[['all', '전체 학생'], ['pending', '가입 승인 대기'], ['r1', '1차 첨삭 요청'], ['r2', '2차 첨삭 요청'], ['r3', '3차 첨삭 요청'], ['done', '완성']].map(([k, label]) => stat(k, rows.filter((x) => inClass(x) && STAGE[k](x)).length, label)).join('')}</div>
     <section class="card"><h2>학생에게 주소 공유</h2><div class="share"><div id="shareQr"></div><div class="share-info"><p class="small muted">학생에게 이 주소를 보내거나 QR 코드를 보여 주세요. 학생용 로그인 화면이 열립니다.</p><input id="shareUrl" readonly value="${esc(studentUrl())}" aria-label="학생용 주소"><div class="row"><button class="btn btn-primary btn-sm" data-act="copyUrl">주소 복사</button><button class="btn btn-sm" data-act="saveQr">QR 이미지 저장</button></div></div></div></section>
     <section class="card"><div class="form-grid filters"><div class="field"><label for="search">이름 또는 학번 검색</label><input id="search" value="${esc(state.search)}"></div><div class="field"><label for="stageFilter">상태</label><select id="stageFilter">${[['all', '전체'], ['pending', '가입 승인 대기'], ['none', '시작 전'], ['w1', '1차 작성 중'], ['r1', '1차 첨삭 요청'], ['w2', '2차 작성 중'], ['r2', '2차 첨삭 요청'], ['w3', '3차 작성 중'], ['r3', '3차 첨삭 요청'], ['done', '완성']].map(([k, l]) => `<option value="${k}" ${state.filter === k ? 'selected' : ''}>${l} (${rows.filter((x) => inClass(x) && STAGE[k](x)).length})</option>`).join('')}</select></div><div class="field"><label for="deptFilter">학과</label><select id="deptFilter"><option value="">전체</option>${depts.map((d) => `<option ${state.deptFilter === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div><div class="field"><label for="classFilter">반</label><select id="classFilter"><option value="">전체</option>${classes.map(([k, l]) => `<option value="${k}" ${state.classFilter === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>${bulkBar()}<div class="table-scroll"><table class="data"><thead><tr><th class="pick">${canPick.length ? `<input type="checkbox" id="pickAll" ${allOn ? 'checked' : ''} aria-label="보이는 학생 모두 선택">` : ''}</th><th>학번</th><th>이름</th><th>학과</th><th>상태</th><th>진행률</th><th>미입력</th><th>피드백</th><th>추가 자기소개서</th><th>최근 저장</th><th>승인일</th><th>관리</th></tr></thead><tbody>${list.map(item).join('') || '<tr><td colspan="12" class="muted">해당하는 학생이 없습니다.</td></tr>'}</tbody></table></div></section>
@@ -889,7 +1059,7 @@ function viewTeacher() {
 }
 
 function render() {
-  const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher, depts: viewDepts }[state.view]();
+  const view = { auth: viewAuth, pending: viewPending, editor: viewEditor, teacher: viewTeacher, depts: viewDepts, program: viewProgram }[state.view]();
   const y = window.scrollY;
   $('#app').innerHTML = view;
   $('#app').className = state.view === 'teacher' ? 'wide' : '';
@@ -1029,6 +1199,25 @@ const ACT = {
   bulkPrint: () => bulkPrint(),
   bulkClear: () => { state.picked.clear(); render(); },
   aiOne: async () => { if (state.dirty) await save(); downloadAi(false); },
+  openProgram: async () => { if (await loadProgramAdmin()) { state.view = 'program'; state.calMonth = ''; render(); window.scrollTo(0, 0); } },
+  evAdd: () => { state.progEvents.push({ day: todayIso(), period: '', grp: '전체', dept: '', company: '', title: '', place: '' }); render(); },
+  evDel: (i) => { const [e] = state.progEvents.splice(+i, 1); if (e?.id) state.progDeleted.push(e.id); render(); },
+  evSave: async () => {
+    const list = state.progEvents;
+    if (list.some((e) => !e.day || !e.title.trim())) { toast('날짜와 내용을 모두 입력해 주세요.'); return; }
+    const pick = (e) => ({ day: e.day, period: e.period.trim(), grp: e.grp, dept: e.dept.trim(), company: e.company.trim(), title: e.title.trim(), place: e.place.trim() });
+    const jobs = [
+      ...state.progDeleted.map((id) => sb.from('resume_program_events').delete().eq('id', id)),
+      ...list.filter((e) => e.id).map((e) => sb.from('resume_program_events').update(pick(e)).eq('id', e.id)),
+    ];
+    const fresh = list.filter((e) => !e.id).map(pick);
+    if (fresh.length) jobs.push(sb.from('resume_program_events').insert(fresh));
+    const res = await Promise.all(jobs);
+    if (res.some((r) => r.error)) { toast('일부 일정을 저장하지 못했습니다. 다시 시도해 주세요.'); return; }
+    await loadProgramAdmin(); render(); toast('일정을 저장했습니다.');
+  },
+  progDownload: () => downloadProgram(),
+  calMove: (v) => { state.calMonth = v; render(); },
   openDepts: async () => { await loadDepts(); state.view = 'depts'; render(); window.scrollTo(0, 0); },
   delDept: async (id) => {
     const d = state.depts.find((x) => String(x.id) === String(id));
@@ -1142,6 +1331,7 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset.ev !== undefined) { state.progEvents[+t.dataset.ev][t.dataset.k] = t.value; return; }
   if (t.id === 'search') { state.search = t.value; const pos = t.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); return; }
   if (t.dataset.co || t.dataset.coCompany !== undefined) {
     const c = state.companies.find((x) => x.id === state.companyId);
@@ -1170,6 +1360,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.id === 'photoInput' && t.files[0]) uploadPhoto(t.files[0]);
+  if (t.id === 'progUpload' && t.files[0]) { uploadProgram(t.files[0]); t.value = ''; return; }
   if (['f-grade', 'f-class', 'f-number'].includes(t.id) && $('#autoId')) {
     const g = $('#f-grade').value; const c = $('#f-class').value; const n = $('#f-number').value;
     $('#autoId').innerHTML = g && c && n ? `내 학번은 <b>${makeStudentId(g, c, n)}</b>입니다. 로그인할 때 이 번호를 사용하세요.` : '학년, 반, 번호를 고르면 학번이 만들어집니다.';
@@ -1182,6 +1373,7 @@ document.addEventListener('change', (e) => {
   if (t.id === 'classFilter') { state.classFilter = t.value; render(); return; }
   if (t.id === 'stageFilter') { state.filter = t.value; render(); return; }
   if (t.id === 'deptFilter') { state.deptFilter = t.value; render(); return; }
+  if (t.dataset.ev !== undefined) { state.progEvents[+t.dataset.ev][t.dataset.k] = t.value; return; }
   if (t.dataset.pick) { if (t.checked) state.picked.add(t.dataset.pick); else state.picked.delete(t.dataset.pick); render(); return; }
   if (t.id === 'pickAll') { (state.shownRows || []).filter(pickable).forEach((x) => (t.checked ? state.picked.add(x.s.id) : state.picked.delete(x.s.id))); render(); return; }
   if (t.dataset.perm) {
@@ -1294,6 +1486,6 @@ async function boot() {
     }
   }
   if (profile.role === 'teacher') await loadTeacher();
-  else await openResume(profile);
+  else { await openResume(profile); if (state.view === 'editor') { state.tab = 'home'; render(); } }
 }
 boot();
