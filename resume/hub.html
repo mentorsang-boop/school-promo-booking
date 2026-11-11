@@ -15,6 +15,9 @@
   .hub-card:hover { border-color: var(--brand); }
   .hub-card b { font-size: 1.0625rem; color: var(--brand-900); }
   .hub-card span { font-size: .8125rem; color: var(--ink-2); }
+  .hub-card.hub-icon { grid-template-columns: 48px 1fr; align-items: center; column-gap: 14px; }
+  .hub-card.hub-icon img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #F59E0B; background: #fff; }
+  .hub-card.hub-icon div { display: grid; gap: 4px; }
 </style>
 </head>
 <body>
@@ -23,12 +26,13 @@
   <div class="head"><h1>어디로 들어갈까요?</h1></div>
   <section class="hub-group"><h2>수업</h2><div class="hub-grid">
     <a class="hub-card" href="https://bakery-flea-pos.vercel.app"><b>제빵 플리마켓 POS</b><span>매장 운영, 주문, 근무, 매출</span></a>
+    <a class="hub-card hub-icon" href="https://mentorsang-boop.github.io/harin-class/t"><img src="https://mentorsang-boop.github.io/harin-class/assets/harin-face.png" alt="" width="48" height="48"><div><b>노동인권교육 · 하린의 첫 직장 한 달</b><span>모둠 활동, 수업 진행판, 발표 화면(PPT), 참관 화면</span></div></a>
   </div></section>
   <section class="hub-group"><h2>업무</h2><div class="hub-grid">
     <a class="hub-card" href="https://mentorsang-boop.github.io/school-promo-booking/"><b>홍보 예약 시스템</b><span>학교 홍보 일정과 예약 관리</span></a>
     <a class="hub-card" href="admin.html"><b>이력서 작성 시스템</b><span>학생 이력서 확인, 피드백, 수정</span></a>
   </div></section>
-  <p class="version">v1.1</p>
+  <p class="version">v1.2</p>
 </main>
 </body>
 </html>
